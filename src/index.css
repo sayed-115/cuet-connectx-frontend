@@ -1,0 +1,215 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ========================================
+   GLOBAL COLOR SYSTEM - CUET ConnectX
+   ======================================== */
+:root {
+  /* Primary Colors - Teal Theme */
+  --color-primary-50: #f0fdfa;
+  --color-primary-100: #ccfbf1;
+  --color-primary-200: #99f6e4;
+  --color-primary-300: #5eead4;
+  --color-primary-400: #2dd4bf;
+  --color-primary-500: #14b8a6;
+  --color-primary-600: #0d9488;
+  --color-primary-700: #0f766e;
+  --color-primary-800: #115e59;
+  --color-primary-900: #134e4a;
+  
+  /* Accent Colors - Amber/Gold */
+  --color-accent-400: #fbbf24;
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #d97706;
+  
+  /* Success Colors */
+  --color-success-100: #dcfce7;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
+  
+  /* Warning Colors */
+  --color-warning-100: #fef3c7;
+  --color-warning-500: #f59e0b;
+  --color-warning-700: #b45309;
+  
+  /* Error Colors */
+  --color-error-100: #fee2e2;
+  --color-error-500: #ef4444;
+  --color-error-600: #dc2626;
+  
+  /* Neutral Colors */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  
+  /* Legacy variable mappings */
+  --primary: #0d9488;
+  --primary-light: #14b8a6;
+  --accent: #2dd4bf;
+  --secondary: #ccfbf1;
+  --gold: #f59e0b;
+}
+
+/* Dark mode color adjustments */
+.dark {
+  --color-primary-50: #134e4a;
+  --color-primary-100: #115e59;
+}
+
+* {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography */
+.heading-font {
+  font-family: 'Poppins', sans-serif;
+}
+
+.gradient-text {
+  @apply bg-gradient-to-r from-teal-600 to-teal-400 bg-clip-text text-transparent;
+}
+
+.gradient-text-gold {
+  @apply bg-gradient-to-r from-yellow-500 to-amber-400 bg-clip-text text-transparent;
+}
+
+/* Professional Card Styles */
+.card-professional {
+  @apply bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700;
+  @apply hover:shadow-xl hover:border-teal-200 dark:hover:border-teal-700;
+  @apply transition-all duration-300 ease-out;
+}
+
+.card-professional:hover {
+  transform: translateY(-4px);
+}
+
+/* Button Styles */
+.btn-primary {
+  @apply px-6 py-3 bg-gradient-to-r from-teal-600 to-teal-500 text-white font-semibold rounded-xl;
+  @apply hover:from-teal-700 hover:to-teal-600 transform hover:scale-[1.02];
+  @apply transition-all duration-200 shadow-lg shadow-teal-500/25;
+}
+
+.btn-secondary {
+  @apply px-6 py-3 border-2 border-teal-600 text-teal-600 dark:text-teal-400 font-semibold rounded-xl;
+  @apply hover:bg-teal-50 dark:hover:bg-teal-900/30 transform hover:scale-[1.02];
+  @apply transition-all duration-200;
+}
+
+.btn-ghost {
+  @apply px-6 py-3 text-gray-600 dark:text-gray-300 font-medium rounded-xl;
+  @apply hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200;
+}
+
+/* Input Styles */
+.input-professional {
+  @apply w-full py-3.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600;
+  @apply rounded-xl text-gray-900 dark:text-white placeholder-gray-400;
+  @apply focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white dark:focus:bg-gray-700;
+  @apply transition-all duration-200 outline-none;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.input-professional.pl-11 {
+  padding-left: 2.75rem;
+}
+
+.input-professional.pl-12 {
+  padding-left: 3rem;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.6s ease-out forwards;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+/* Stagger animations */
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+
+/* Glass morphism */
+.glass {
+  @apply bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg;
+}
+
+/* Logo glow effect */
+.logo-glow {
+  filter: drop-shadow(0 0 8px rgba(13, 148, 136, 0.4));
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 dark:bg-gray-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-teal-500/50 rounded-full hover:bg-teal-500/70;
+}
+
+/* Selection styling */
+::selection {
+  @apply bg-teal-500 text-white;
+}
