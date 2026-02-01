@@ -163,28 +163,6 @@ function Login() {
               </button>
             </form>
 
-            <div className="mt-8">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-200 dark:border-gray-700"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-white dark:bg-gray-800 text-gray-500">Or continue with</span>
-                </div>
-              </div>
-              
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <button className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                  <i className="fab fa-google text-red-500"></i>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Google</span>
-                </button>
-                <button className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                  <i className="fab fa-linkedin text-blue-600"></i>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">LinkedIn</span>
-                </button>
-              </div>
-            </div>
-
             <p className="mt-8 text-center text-gray-600 dark:text-gray-400">
               Don't have an account? <Link to="/signup" className="text-teal-600 hover:text-teal-700 font-semibold">Create Account</Link>
             </p>
