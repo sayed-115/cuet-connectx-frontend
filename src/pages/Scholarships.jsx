@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { scholarshipsAPI } from '../services/api'
 
 function Scholarships() {
   const [savedScholarships, setSavedScholarships] = useState([])
@@ -23,56 +24,46 @@ function Scholarships() {
     benefits: '',
     description: '' 
   })
+  const [scholarships, setScholarships] = useState([])
+  const [loading, setLoading] = useState(true)
   const { isLoggedIn, user } = useAuth()
   const navigate = useNavigate()
 
-  const [scholarships, setScholarships] = useState([
-    { 
-      id: 1, 
-      name: 'Fulbright Foreign Student Program', 
-      level: "Master's, PhD", 
-      location: 'USA', 
-      fundingType: 'Full',
-      duration: '2-3 years',
-      fundingDetails: 'Full tuition + $2,500/month stipend + Travel',
-      deadline: 'October 15, 2026',
-      link: 'https://foreign.fulbrightonline.org',
-      eligibility: 'Must be a citizen of an eligible country. Bachelor\'s degree required. Strong academic record and leadership potential.',
-      benefits: 'Full tuition coverage, monthly stipend, round-trip airfare, health insurance, and pre-academic training.',
-      description: 'Full scholarship for international students to pursue graduate studies in the United States. Covers tuition, living expenses, and travel costs.',
-      postedBy: { name: 'Dr. Nasrin Ahmed', type: 'Alumni' }
-    },
-    { 
-      id: 2, 
-      name: 'Commonwealth PhD Scholarships', 
-      level: 'PhD', 
-      location: 'UK', 
-      fundingType: 'Full',
-      duration: '3-4 years',
-      fundingDetails: 'Full tuition + Living allowance + Travel',
-      deadline: 'December 16, 2026',
-      link: 'https://cscuk.fcdo.gov.uk/scholarships',
-      eligibility: 'Citizens of Commonwealth countries. Must have a relevant Master\'s degree or equivalent.',
-      benefits: 'Full tuition fees, living allowance, return airfare, thesis grant, and warm clothing allowance.',
-      description: 'Commonwealth scholarships for developing country students to pursue doctoral studies in UK universities.',
-      postedBy: { name: 'Prof. Karim Rahman', type: 'Alumni' }
-    },
-    { 
-      id: 3, 
-      name: 'CUET Merit Scholarship', 
-      level: 'Undergraduate', 
-      location: 'Bangladesh', 
-      fundingType: 'Partial',
-      duration: '1 year (renewable)',
-      fundingDetails: '50% tuition waiver',
-      deadline: 'March 31, 2026',
-      link: 'https://cuet.ac.bd/scholarship',
-      eligibility: 'Current CUET students with CGPA 3.75 or above. Must maintain academic standing.',
-      benefits: '50% tuition waiver for one academic year, renewable based on performance.',
-      description: 'Merit-based scholarship for CUET undergraduate students with excellent academic records.',
-      postedBy: { name: 'CUET Admin', type: 'Admin' }
-    },
-  ])
+  // Fetch scholarships from API
+  useEffect(() => {
+    const fetchScholarships = async () => {
+      try {
+        setLoading(true)
+        console.log('Fetching scholarships...')
+        const response = await scholarshipsAPI.getAll()
+        console.log('Scholarships API response:', response)
+        if (response.success) {
+          const formattedScholarships = response.scholarships.map(s => ({
+            id: s._id,
+            name: s.title,
+            level: "Master's, PhD",
+            location: 'International',
+            fundingType: s.amount?.toLowerCase().includes('full') ? 'Full' : 'Partial',
+            duration: '1-4 years',
+            fundingDetails: s.amount || 'Varies',
+            deadline: s.deadline ? new Date(s.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
+            link: s.link || '#',
+            eligibility: s.eligibility || 'See official website for details',
+            benefits: s.amount || 'Full funding available',
+            description: s.description || s.title,
+            organization: s.organization,
+            postedBy: s.postedBy ? { name: s.postedBy.fullName, type: 'Alumni' } : { name: 'CUET Alumni', type: 'Alumni' }
+          }))
+          setScholarships(formattedScholarships)
+        }
+      } catch (error) {
+        console.error('Error fetching scholarships:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchScholarships()
+  }, [])
 
   const levels = ['All Levels', 'Undergraduate', "Master's", 'PhD', 'Postdoc']
   const locations = ['All Locations', 'Bangladesh', 'USA', 'UK', 'Europe', 'Asia', 'Australia']
@@ -344,6 +335,13 @@ function Scholarships() {
           </div>
         )}
 
+        {/* Loading Indicator */}
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent"></div>
+          </div>
+        ) : (
+        <>
         {/* Scholarship Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredScholarships.map(scholarship => (
@@ -433,13 +431,15 @@ function Scholarships() {
           ))}
         </div>
         
-        {filteredScholarships.length === 0 && (
+        {filteredScholarships.length === 0 && !loading && (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <i className="fas fa-search text-4xl mb-4 opacity-50"></i>
             <p>No scholarships found matching your criteria</p>
             <button onClick={() => { setSearchTerm(''); setLevel('All Levels'); setLocation('All Locations'); setFundingType('Funding Type'); }} className="mt-4 text-teal-600 hover:underline">Clear all filters</button>
           </div>
         )}
+      </>
+      )}
       </div>
     </div>
   )

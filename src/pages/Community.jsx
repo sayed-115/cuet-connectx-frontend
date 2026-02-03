@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { usersAPI } from '../services/api'
 
 function Community() {
   const [followedMembers, setFollowedMembers] = useState([])
@@ -8,22 +9,66 @@ function Community() {
   const [memberType, setMemberType] = useState('All Members')
   const [department, setDepartment] = useState('All Departments')
   const [batchFilter, setBatchFilter] = useState('All Batches')
-  const { isLoggedIn } = useAuth()
+  const [members, setMembers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const { isLoggedIn, user } = useAuth()
   const navigate = useNavigate()
 
-  const members = [
-    { id: 1, name: 'Anupam Paul', studentId: '2204116', batch: '2022', department: 'CSE', initials: 'AP', type: 'Student', bio: 'Passionate about AI and Machine Learning. Looking for research opportunities.', skills: [], followers: 245, location: '' },
-    { id: 2, name: 'MD Abu Sayed', studentId: '2204115', batch: '2022', department: 'CSE', initials: 'AS', type: 'Student', bio: 'Passionate about AI and Machine Learning. Looking for research opportunities.', skills: [], followers: 333, location: '' },
-    { id: 3, name: 'Fatima Rahman', studentId: '2304201', batch: '2023', department: 'EEE', initials: 'FR', type: 'Student', bio: 'Electronics enthusiast with interest in IoT and embedded systems.', skills: [], followers: 180, location: '' },
-    { id: 4, name: 'Karim Hassan', studentId: '2104306', batch: '2021', department: 'ME', initials: 'KH', type: 'Student', bio: 'Mechanical engineering student interested in robotics and automation.', skills: [], followers: 370, location: '' },
-    { id: 5, name: 'Abir Hassan', studentId: '1804110', batch: '2018', department: 'BANGLADESH', initials: 'AH', type: 'Alumni', position: 'Lecturer at CUET', skills: ['Machine Learning', 'Software Development', 'Teaching', 'Internet Programming'], followers: 520, location: '' },
-    { id: 6, name: 'Fahim Hassan', studentId: '1104220', batch: '2007', department: 'UK', initials: 'FH', type: 'Alumni', position: 'Data Scientist at DeepMind', skills: ['Machine Learning', 'Python', 'TensorFlow'], followers: 430, location: '' },
-    { id: 7, name: 'Nusrat Jahan', studentId: '1904133', batch: '2019', department: 'Bangladesh', initials: 'NJ', type: 'Alumni', position: 'Founder & CEO at TechStart BD', skills: ['Business', 'Leadership', 'Marketing'], followers: 680, location: '' },
-  ]
+  // Fetch users from API
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setLoading(true)
+        console.log('Fetching users...')
+        const response = await usersAPI.getAll()
+        console.log('Users API response:', response)
+        if (response.success) {
+          // Filter out current user and ensure unique student IDs
+          const seenStudentIds = new Set()
+          const currentUserStudentId = user?.studentId
+          
+          const formattedMembers = response.users
+            .filter(u => {
+              if (currentUserStudentId && u.studentId === currentUserStudentId) {
+                return false;
+              }
+              if (seenStudentIds.has(u.studentId)) {
+                return false;
+              }
+              seenStudentIds.add(u.studentId);
+              return true;
+            })
+            .map(user => ({
+              id: user._id,
+              name: user.fullName,
+              studentId: user.studentId,
+              batch: user.batch || '20' + user.studentId.substring(0, 2),
+              department: user.departmentShort || 'CSE',
+              profileImage: user.profileImage || null, // Include profileImage
+              initials: user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
+              type: user.currentPosition ? 'Alumni' : 'Student',
+              bio: user.bio || 'CUET community member',
+              position: user.currentPosition ? `${user.currentPosition} at ${user.company || 'N/A'}` : null,
+              skills: user.skills || [],
+              followers: Math.floor(Math.random() * 500) + 100,
+              location: user.location || ''
+            }))
+          setMembers(formattedMembers)
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchUsers()
+  }, [user])
 
   const memberTypes = ['All Members', 'Alumni', 'Student']
-  const departments = ['All Departments', 'CSE', 'EEE', 'ME', 'CE', 'URP', 'Arch']
-  const batches = ['All Batches', ...new Set(members.map(m => m.batch))].sort()
+  const departments = ['All Departments', 'CSE', 'EEE', 'ME', 'CE', 'URP', 'Arch', 'PME', 'ECE', 'PHY', 'CHEM', 'MATH', 'HUM']
+  const batches = members.length > 0 
+    ? ['All Batches', ...new Set(members.map(m => m.batch))].sort()
+    : ['All Batches']
 
   const handleFollow = (memberId) => {
     if (!isLoggedIn) {
@@ -100,13 +145,23 @@ function Community() {
           </div>
         </div>
 
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent"></div>
+          </div>
+        ) : (
+        <>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMembers.map(member => (
             <div key={member.id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm hover:shadow-lg transition-shadow duration-300">
               {/* Header with avatar and badge */}
               <div className="flex items-start justify-between mb-4">
-                <div className="w-14 h-14 bg-teal-100 dark:bg-teal-900/50 rounded-full flex items-center justify-center border-2 border-teal-500">
-                  <span className="text-teal-700 dark:text-teal-400 font-bold text-lg">{member.initials}</span>
+                <div className="w-14 h-14 bg-teal-100 dark:bg-teal-900/50 rounded-full flex items-center justify-center border-2 border-teal-500 overflow-hidden">
+                  {member.profileImage ? (
+                    <img src={member.profileImage} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-teal-700 dark:text-teal-400 font-bold text-lg">{member.initials}</span>
+                  )}
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                   member.type === 'Student' 
@@ -183,12 +238,14 @@ function Community() {
           ))}
         </div>
         
-        {filteredMembers.length === 0 && (
+        {filteredMembers.length === 0 && !loading && (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <i className="fas fa-users text-4xl mb-4 opacity-50"></i>
             <p>No members found matching your criteria</p>
             <button onClick={() => { setSearchTerm(''); setMemberType('All Members'); setDepartment('All Departments'); setBatchFilter('All Batches'); }} className="mt-4 text-teal-600 hover:underline">Clear all filters</button>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

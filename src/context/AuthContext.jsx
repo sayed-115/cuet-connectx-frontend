@@ -264,6 +264,30 @@ export function AuthProvider({ children }) {
     }
   }
 
+  const followUser = async (targetUserId) => {
+    try {
+      const response = await usersAPI.follow(targetUserId);
+      if (response.success) {
+        setFollowing(response.user.following);
+        setFollowers(response.targetUser.followers);
+      }
+    } catch (error) {
+      console.error('Error following user:', error);
+    }
+  };
+
+  const unfollowUser = async (targetUserId) => {
+    try {
+      const response = await usersAPI.unfollow(targetUserId);
+      if (response.success) {
+        setFollowing(response.user.following);
+        setFollowers(response.targetUser.followers);
+      }
+    } catch (error) {
+      console.error('Error unfollowing user:', error);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -280,7 +304,9 @@ export function AuthProvider({ children }) {
       isFollowingMember,
       getFollowingList,
       getFollowers,
-      refreshFollowers
+      refreshFollowers,
+      followUser,
+      unfollowUser
     }}>
       {children}
     </AuthContext.Provider>

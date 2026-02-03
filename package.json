@@ -10,9 +10,11 @@
     "deploy": "vite build && gh-pages -d dist"
   },
   "dependencies": {
+    "multer": "^2.0.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.1.5"
+    "react-router-dom": "^7.1.5",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.7",

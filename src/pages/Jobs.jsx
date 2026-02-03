@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { jobsAPI } from '../services/api'
 
 function Jobs() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -13,123 +14,71 @@ function Jobs() {
   const [showPostModal, setShowPostModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
   const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
+  const [jobs, setJobs] = useState([])
+  const [loading, setLoading] = useState(true)
   const { isLoggedIn } = useAuth()
   const navigate = useNavigate()
-  
-  const [jobs, setJobs] = useState([
-    { 
-      id: 1, 
-      title: 'Software Engineer', 
-      company: 'TechCorp Bangladesh Ltd.', 
-      location: 'Dhaka, Bangladesh', 
-      type: 'Full-Time', 
-      posted: '2 days ago', 
-      salary: '$120k-180k', 
-      experience: 'Entry Level (0-2 years)', 
-      deadline: 'February 28, 2026',
-      postedByAlumni: true, 
-      postedBy: { name: 'Sarah Ahmed', type: 'Alumni', batch: '2018', position: 'Senior Software Engineer at TechCorp' }, 
-      requirements: [
-        "Bachelor's degree in Computer Science or related field",
-        "Experience with React, Node.js, and cloud technologies",
-        "Strong problem-solving skills",
-        "Good communication skills"
-      ],
-      responsibilities: [
-        "Develop and maintain web applications",
-        "Collaborate with cross-functional teams",
-        "Write clean, maintainable code",
-        "Participate in code reviews"
-      ],
-      applicationLink: 'https://techcorp.com/careers/apply',
-      icon: 'fa-briefcase', 
-      iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400' 
-    },
-    { 
-      id: 2, 
-      title: 'Frontend Development Intern', 
-      company: 'StartupXYZ', 
-      location: 'Remote', 
-      type: 'Internship', 
-      posted: '5 days ago', 
-      salary: 'Paid', 
-      experience: 'Entry Level (0-1 years)', 
-      deadline: 'March 15, 2026',
-      postedByAlumni: false, 
-      postedBy: { name: 'Rajib Khan', type: 'Student', batch: '2021', position: 'Founder at StartupXYZ' }, 
-      requirements: [
-        "Currently pursuing a degree in Computer Science",
-        "Basic knowledge of HTML, CSS, JavaScript",
-        "Eagerness to learn React",
-        "Good communication skills"
-      ],
-      responsibilities: [
-        "Learn and apply React concepts",
-        "Build UI components",
-        "Work on real projects",
-        "Collaborate with the development team"
-      ],
-      applicationLink: 'https://startupxyz.com/internship',
-      icon: 'fa-code', 
-      iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400' 
-    },
-    { 
-      id: 3, 
-      title: 'Data Analyst', 
-      company: 'DataTech Solutions', 
-      location: 'Chittagong, Bangladesh', 
-      type: 'Full-Time', 
-      posted: '1 week ago', 
-      salary: '$80k-120k', 
-      experience: 'Intermediate (2-4 years)', 
-      deadline: 'March 1, 2026',
-      postedByAlumni: true, 
-      postedBy: { name: 'Fahim Hassan', type: 'Alumni', batch: '2017', position: 'Data Science Lead at DataTech' }, 
-      requirements: [
-        "2+ years experience in data analysis",
-        "Strong SQL and Python skills",
-        "Experience with data visualization tools",
-        "Statistical analysis knowledge"
-      ],
-      responsibilities: [
-        "Analyze large datasets",
-        "Create dashboards and reports",
-        "Identify trends and insights",
-        "Present findings to stakeholders"
-      ],
-      applicationLink: 'https://datatech.com/careers',
-      icon: 'fa-chart-line', 
-      iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400' 
-    },
-    { 
-      id: 4, 
-      title: 'ML Engineer', 
-      company: 'AI Labs Bangladesh', 
-      location: 'Remote', 
-      type: 'Full-Time', 
-      posted: '3 days ago', 
-      salary: '$150k-220k', 
-      experience: 'Senior Level (5+ years)', 
-      deadline: 'April 1, 2026',
-      postedByAlumni: true, 
-      postedBy: { name: 'Dr. Rahim Khan', type: 'Alumni', batch: '2010', position: 'AI Research Director' }, 
-      requirements: [
-        "PhD or equivalent experience in ML",
-        "5+ years of industry experience",
-        "Published research papers",
-        "Experience with TensorFlow/PyTorch"
-      ],
-      responsibilities: [
-        "Lead ML research projects",
-        "Design and implement ML models",
-        "Mentor junior engineers",
-        "Publish research findings"
-      ],
-      applicationLink: 'https://ailabs.com/careers/ml-engineer',
-      icon: 'fa-brain', 
-      iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400' 
-    },
-  ])
+
+  // Fetch jobs from API
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        setLoading(true)
+        console.log('Fetching jobs...')
+        const response = await jobsAPI.getAll()
+        console.log('Jobs API response:', response)
+        if (response.success) {
+          console.log('Jobs found:', response.jobs.length)
+          const formattedJobs = response.jobs.map(job => ({
+            id: job._id,
+            title: job.title,
+            company: job.company,
+            location: job.location || 'Remote',
+            type: job.type || 'Full-time',
+            posted: getTimeAgo(job.createdAt),
+            salary: job.salary ? `${job.salary.currency} ${job.salary.min?.toLocaleString()}-${job.salary.max?.toLocaleString()}` : 'Competitive',
+            experience: job.experience || 'Entry Level',
+            deadline: job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
+            postedByAlumni: true,
+            postedBy: job.postedBy ? { 
+              name: job.postedBy.fullName, 
+              type: 'Alumni', 
+              batch: job.postedBy.batch,
+              position: `${job.postedBy.currentPosition || ''} at ${job.postedBy.company || ''}`
+            } : { name: 'CUET Alumni', type: 'Alumni' },
+            requirements: job.requirements || [],
+            responsibilities: job.responsibilities || [],
+            skills: job.skills || [],
+            applicationLink: job.applyLink || '#',
+            icon: 'fa-briefcase',
+            iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
+          }))
+          setJobs(formattedJobs)
+          console.log('Formatted jobs:', formattedJobs.length)
+        } else {
+          console.log('API returned success: false', response)
+        }
+      } catch (error) {
+        console.error('Error fetching jobs:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchJobs()
+  }, [])
+
+  // Helper function to get time ago
+  const getTimeAgo = (dateString) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffTime = Math.abs(now - date)
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return 'Yesterday'
+    if (diffDays < 7) return `${diffDays} days ago`
+    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
+    return `${Math.ceil(diffDays / 30)} months ago`
+  }
 
   const jobTypes = ['All Job Types', 'Full-time', 'Part-time', 'Contract', 'Internship', 'Remote']
   const locations = ['All Locations', 'Remote', 'Dhaka', 'Chittagong', 'San Francisco', 'New York', 'London']
@@ -433,6 +382,13 @@ function Jobs() {
           </div>
         )}
 
+        {/* Loading Indicator */}
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent"></div>
+          </div>
+        ) : (
+        <>
         {/* Job Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredJobs.map(job => (
@@ -511,12 +467,14 @@ function Jobs() {
           ))}
         </div>
         
-        {filteredJobs.length === 0 && (
+        {filteredJobs.length === 0 && !loading && (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <i className="fas fa-search text-4xl mb-4 opacity-50"></i>
             <p>No jobs found matching your criteria</p>
             <button onClick={() => { setSearchTerm(''); setJobType('All Job Types'); setLocation('All Locations'); setExperienceLevel('Experience Level'); setPostedByAlumni(false); }} className="mt-4 text-teal-600 hover:underline">Clear all filters</button>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>
