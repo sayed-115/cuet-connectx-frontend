@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import sayedProfile from '../assets/images/sayed.jpg'
 import coverDefault from '../assets/images/cover.png'
+import { usersAPI } from '../services/api'
 
 // Sample member data for following list (same as MemberProfile)
 const membersData = {
@@ -260,22 +261,36 @@ function Profile() {
     setEditModal({ show: false, section: '', data: null })
   }
 
-  const handleSaveEdit = (section, newData) => {
-    if (section === 'about') {
-      setProfileData({ ...profileData, about: newData })
-    } else if (section === 'contact') {
-      setProfileData({ ...profileData, email: newData.email, address: newData.address })
-    } else if (section === 'social') {
-      setProfileData({ ...profileData, socialLinks: newData })
-    } else if (section === 'professional') {
-      setProfileData({ ...profileData, currentProfession: newData.currentProfession, previousProfession: newData.previousProfession, researchInterests: newData.researchInterests })
-    } else if (section === 'skills') {
-      setProfileData({ ...profileData, skills: newData })
-    } else if (section === 'education') {
-      const updatedEducation = profileData.education.map(edu => edu.id === newData.id ? newData : edu)
-      setProfileData({ ...profileData, education: updatedEducation })
+  const handleSaveEdit = async (section, newData, files) => {
+    try {
+      const formData = new FormData();
+
+      // Append text fields
+      formData.append('section', section);
+      Object.keys(newData).forEach((key) => {
+        formData.append(key, newData[key]);
+      });
+
+      // Append files if provided
+      if (files?.profileImage) {
+        formData.append('profileImage', files.profileImage);
+      }
+      if (files?.coverImage) {
+        formData.append('coverImage', files.coverImage);
+      }
+
+      // Send API request
+      const response = await usersAPI.update(user.id, formData);
+      if (response.success) {
+        setProfileData(response.user);
+        alert('Profile updated successfully!');
+      } else {
+        alert('Failed to update profile.');
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert('An error occurred while updating the profile.');
     }
-    closeEditModal()
   }
 
   const handleAddEducation = (e) => {
