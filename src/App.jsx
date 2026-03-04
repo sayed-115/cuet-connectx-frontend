@@ -15,6 +15,8 @@ import MemberProfile from './pages/MemberProfile'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import Terms from './pages/Terms'
 import Cookies from './pages/Cookies'
+import AdminPortal from './pages/AdminPortal'
+import AdminRoute from './components/admin/AdminRoute'
 
 // Scroll to top on route change
 function ScrollToTop() {
@@ -28,10 +30,13 @@ function ScrollToTop() {
 }
 
 function App() {
+  const { pathname } = useLocation()
+  const isAdminRoute = pathname.startsWith('/admin')
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       <ScrollToTop />
-      <Navbar />
+      {!isAdminRoute && <Navbar />}
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<Home />} />
@@ -47,9 +52,17 @@ function App() {
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/cookies" element={<Cookies />} />
+          <Route
+            path="/admin"
+            element={(
+              <AdminRoute>
+                <AdminPortal />
+              </AdminRoute>
+            )}
+          />
         </Routes>
       </main>
-      <Footer />
+      {!isAdminRoute && <Footer />}
     </div>
   )
 }
