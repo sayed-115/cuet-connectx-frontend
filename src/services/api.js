@@ -85,6 +85,11 @@ export const usersAPI = {
     return apiCall(`/users${queryString ? '?' + queryString : ''}`);
   },
   getById: (id) => apiCall(`/users/${id}`),
+  getProfile: () => apiCall('/users/profile'),
+  updateProfile: (data) => apiCall('/users/profile', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
   update: (id, data) => apiCall(`/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
