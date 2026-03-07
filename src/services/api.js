@@ -92,8 +92,8 @@ export const usersAPI = {
   follow: (id) => apiCall(`/users/${id}/follow`, {
     method: 'POST',
   }),
-  unfollow: (id) => apiCall(`/users/${id}/unfollow`, {
-    method: 'POST',
+  unfollow: (id) => apiCall(`/users/${id}/follow`, {
+    method: 'DELETE',
   }),
 };
 
