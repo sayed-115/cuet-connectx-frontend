@@ -7,11 +7,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [following, setFollowing] = useState([])
-  const [followers, setFollowers] = useState([])
 
   useEffect(() => {
-    // Check for existing token and load user
     const initAuth = async () => {
       const token = localStorage.getItem('token')
       if (token) {
@@ -20,7 +17,6 @@ export function AuthProvider({ children }) {
           if (response.success) {
             setUser(response.user)
             setIsLoggedIn(true)
-            loadFollowData(response.user.studentId)
           }
         } catch (error) {
           console.log('Token expired or invalid')
@@ -29,7 +25,6 @@ export function AuthProvider({ children }) {
       }
       setLoading(false)
     }
-
     initAuth()
   }, [])
 
@@ -39,24 +34,10 @@ export function AuthProvider({ children }) {
       console.log('Session expired, logging out...', event.detail?.reason)
       setUser(null)
       setIsLoggedIn(false)
-      setFollowing([])
-      setFollowers([])
     }
-
     window.addEventListener('auth:logout', handleForcedLogout)
     return () => window.removeEventListener('auth:logout', handleForcedLogout)
   }, [])
-
-  const loadFollowData = (studentId) => {
-    const savedFollowing = localStorage.getItem(`following_${studentId}`)
-    if (savedFollowing) {
-      setFollowing(JSON.parse(savedFollowing))
-    }
-    const savedFollowers = localStorage.getItem(`followers_${studentId}`)
-    if (savedFollowers) {
-      setFollowers(JSON.parse(savedFollowers))
-    }
-  }
 
   // Register a new user
   const register = async (userData) => {
@@ -97,7 +78,6 @@ export function AuthProvider({ children }) {
         localStorage.setItem('token', response.token)
         setUser(response.user)
         setIsLoggedIn(true)
-        loadFollowData(response.user.studentId)
         return { success: true }
       }
       return { success: false, error: 'Login failed' }
@@ -106,100 +86,53 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // Update user profile
-  const updateUser = async (updatedData) => {
-    const updatedUser = { ...user, ...updatedData }
-    setUser(updatedUser)
+  // Update user state (merge partial fields)
+  const updateUser = (updatedData) => {
+    setUser(prev => ({ ...prev, ...updatedData }))
   }
 
   const logout = () => {
     localStorage.removeItem('token')
     setUser(null)
     setIsLoggedIn(false)
-    setFollowing([])
-    setFollowers([])
   }
 
-  // Follow a member - also add current user to member's followers
-  const followMember = (memberId) => {
-    if (!user) return
-    const memberIdStr = String(memberId)
-    if (!following.includes(memberIdStr)) {
-      const newFollowing = [...following, memberIdStr]
-      setFollowing(newFollowing)
-      localStorage.setItem(`following_${user.studentId}`, JSON.stringify(newFollowing))
-      
-      // Add current user to the member's followers list
-      const memberFollowers = JSON.parse(localStorage.getItem(`followers_${memberIdStr}`) || '[]')
-      if (!memberFollowers.includes(user.studentId)) {
-        memberFollowers.push(user.studentId)
-        localStorage.setItem(`followers_${memberIdStr}`, JSON.stringify(memberFollowers))
-      }
-    }
+  // Check if the logged-in user follows a given user ID
+  const isFollowingMember = (targetId) => {
+    if (!user || !user.following) return false
+    return user.following.some(f => {
+      const fId = typeof f === 'object' && f !== null ? (f._id || f) : f
+      return String(fId) === String(targetId)
+    })
   }
 
-  // Unfollow a member - also remove current user from member's followers
-  const unfollowMember = (memberId) => {
-    if (!user) return
-    const memberIdStr = String(memberId)
-    const newFollowing = following.filter(id => id !== memberIdStr)
-    setFollowing(newFollowing)
-    localStorage.setItem(`following_${user.studentId}`, JSON.stringify(newFollowing))
-    
-    // Remove current user from the member's followers list
-    const memberFollowers = JSON.parse(localStorage.getItem(`followers_${memberIdStr}`) || '[]')
-    const updatedFollowers = memberFollowers.filter(id => id !== user.studentId)
-    localStorage.setItem(`followers_${memberIdStr}`, JSON.stringify(updatedFollowers))
-  }
-
-  // Check if following a member
-  const isFollowingMember = (memberId) => {
-    return following.includes(String(memberId))
-  }
-
-  // Get following list
-  const getFollowingList = () => following
-
-  // Get followers list - reload from localStorage to get latest
-  const getFollowers = () => {
-    if (!user) return []
-    const savedFollowers = localStorage.getItem(`followers_${user.studentId}`)
-    return savedFollowers ? JSON.parse(savedFollowers) : []
-  }
-
-  // Refresh followers from localStorage
-  const refreshFollowers = () => {
-    if (user) {
-      const savedFollowers = localStorage.getItem(`followers_${user.studentId}`)
-      if (savedFollowers) {
-        setFollowers(JSON.parse(savedFollowers))
-      }
-    }
-  }
-
+  // Follow a user via API — returns full response for callers
   const followUser = async (targetUserId) => {
     try {
-      const response = await usersAPI.follow(targetUserId);
+      const response = await usersAPI.follow(targetUserId)
       if (response.success) {
-        setFollowing(response.user.following);
-        setFollowers(response.targetUser.followers);
+        setUser(prev => ({ ...prev, following: response.user.following }))
+        return response
       }
     } catch (error) {
-      console.error('Error following user:', error);
+      console.error('Error following user:', error)
+      throw error
     }
-  };
+  }
 
+  // Unfollow a user via API — returns full response for callers
   const unfollowUser = async (targetUserId) => {
     try {
-      const response = await usersAPI.unfollow(targetUserId);
+      const response = await usersAPI.unfollow(targetUserId)
       if (response.success) {
-        setFollowing(response.user.following);
-        setFollowers(response.targetUser.followers);
+        setUser(prev => ({ ...prev, following: response.user.following }))
+        return response
       }
     } catch (error) {
-      console.error('Error unfollowing user:', error);
+      console.error('Error unfollowing user:', error)
+      throw error
     }
-  };
+  }
 
   return (
     <AuthContext.Provider value={{ 
@@ -210,14 +143,7 @@ export function AuthProvider({ children }) {
       logout, 
       register, 
       updateUser,
-      following,
-      followers,
-      followMember,
-      unfollowMember,
       isFollowingMember,
-      getFollowingList,
-      getFollowers,
-      refreshFollowers,
       followUser,
       unfollowUser
     }}>
