@@ -92,8 +92,8 @@ export const usersAPI = {
   follow: (id) => apiCall(`/users/${id}/follow`, {
     method: 'POST',
   }),
-  unfollow: (id) => apiCall(`/users/${id}/unfollow`, {
-    method: 'POST',
+  unfollow: (id) => apiCall(`/users/${id}/follow`, {
+    method: 'DELETE',
   }),
 };
 
@@ -164,5 +164,29 @@ export const postsAPI = {
   }),
 };
 
-export default { authAPI, usersAPI, jobsAPI, scholarshipsAPI, postsAPI };
+// Admin API
+export const adminAPI = {
+  getDashboard: () => apiCall('/admin/dashboard'),
+  getUsers: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiCall(`/admin/users${queryString ? '?' + queryString : ''}`);
+  },
+  getUserById: (id) => apiCall(`/admin/users/${id}`),
+  updateRole: (id, role) => apiCall(`/admin/users/${id}/role`, {
+    method: 'PUT',
+    body: JSON.stringify({ role }),
+  }),
+  updateStatus: (id, status) => apiCall(`/admin/users/${id}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  }),
+  deleteUser: (id) => apiCall(`/admin/users/${id}`, {
+    method: 'DELETE',
+  }),
+  approveAlumni: (id) => apiCall(`/admin/users/${id}/approve`, {
+    method: 'PUT',
+  }),
+};
+
+export default { authAPI, usersAPI, jobsAPI, scholarshipsAPI, postsAPI, adminAPI };
 
