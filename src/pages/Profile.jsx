@@ -5,7 +5,7 @@ import coverDefault from '../assets/images/cover.png'
 import { usersAPI } from '../services/api'
 
 function Profile() {
-  const { user, isLoggedIn, following, unfollowMember } = useAuth()
+  const { user, isLoggedIn, following, unfollowMember, updateUser } = useAuth()
   const navigate = useNavigate()
 
   // UI states
@@ -94,6 +94,7 @@ function Profile() {
       const res = await usersAPI.updateProfile(payload)
       if (res.success) {
         setProfileData(res.user)
+        updateUser(payload)
         showToast('Profile updated successfully!')
       }
     } catch (err) {
@@ -106,58 +107,62 @@ function Profile() {
   }
 
   // Image upload handlers
-  const handleCoverUpload = (e) => {
+  const handleCoverUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     setIsUploadingCover(true)
-    const img = new Image()
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    img.onload = () => {
-      const maxWidth = 1200
-      const scale = Math.min(1, maxWidth / img.width)
-      canvas.width = img.width * scale
-      canvas.height = img.height * scale
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      const compressedImage = canvas.toDataURL('image/jpeg', 0.7)
-      setCoverImage(compressedImage)
+    try {
+      const formData = new FormData()
+      formData.append('coverImage', file)
+      const res = await usersAPI.uploadImage(formData)
+      if (res.success && res.user) {
+        const imgUrl = res.user.coverImage
+        setCoverImage(imgUrl)
+        setProfileData(prev => ({ ...prev, coverImage: imgUrl }))
+        updateUser({ coverImage: imgUrl })
+        showToast('Cover image updated!')
+      }
+    } catch (err) {
+      console.error('Cover image upload failed:', err)
+      showToast(err.message || 'Failed to upload image', 'error')
+    } finally {
       setIsUploadingCover(false)
     }
-    img.onerror = () => { setIsUploadingCover(false) }
-    img.src = URL.createObjectURL(file)
   }
 
   const handleCoverDelete = () => {
     setCoverImage(null)
     setShowCoverMenu(false)
+    updateUser({ coverImage: null })
   }
 
-  const handleProfileUpload = (e) => {
+  const handleProfileUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     setIsUploadingProfile(true)
-    const img = new Image()
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    img.onload = () => {
-      const maxSize = 400
-      const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
-      canvas.width = img.width * scale
-      canvas.height = img.height * scale
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      const compressedImage = canvas.toDataURL('image/jpeg', 0.8)
-      setProfileImage(compressedImage)
+    try {
+      const formData = new FormData()
+      formData.append('profileImage', file)
+      const res = await usersAPI.uploadImage(formData)
+      if (res.success && res.user) {
+        const imgUrl = res.user.profileImage
+        setProfileImage(imgUrl)
+        setProfileData(prev => ({ ...prev, profileImage: imgUrl }))
+        updateUser({ profileImage: imgUrl })
+        showToast('Profile image updated!')
+      }
+    } catch (err) {
+      console.error('Profile image upload failed:', err)
+      showToast(err.message || 'Failed to upload image', 'error')
+    } finally {
       setIsUploadingProfile(false)
-      window.dispatchEvent(new Event('profileImageUpdated'))
     }
-    img.onerror = () => { setIsUploadingProfile(false) }
-    img.src = URL.createObjectURL(file)
   }
 
-  const handleProfileDelete = () => {
+  const handleProfileDelete = async () => {
     setProfileImage(null)
     setShowProfileMenu(false)
-    window.dispatchEvent(new Event('profileImageUpdated'))
+    updateUser({ profileImage: null })
   }
 
   const handleShare = () => {

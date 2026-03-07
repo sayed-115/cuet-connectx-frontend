@@ -90,6 +90,17 @@ export const usersAPI = {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
+  uploadImage: async (formData) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/users/profile/image`, {
+      method: 'PUT',
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new ApiError(data.message || 'Upload failed', response.status);
+    return data;
+  },
   update: (id, data) => apiCall(`/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
