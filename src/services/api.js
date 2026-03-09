@@ -54,7 +54,7 @@ async function apiCall(endpoint, options = {}) {
     // Handle 401 Unauthorized - auto logout
     if (response.status === 401) {
       const isExpired = data.expired === true;
-      if (isExpired || data.message?.includes('expired')) {
+      if (isExpired || data.message?.includes('expired') || data.message?.includes('Password recently changed')) {
         handleLogout();
       }
       throw new ApiError(data.message || 'Session expired. Please login again.', 401, isExpired);
@@ -113,6 +113,10 @@ export const usersAPI = {
     return apiCall(`/users${queryString ? '?' + queryString : ''}`);
   },
   getById: (id) => apiCall(`/users/${id}`),
+  changePassword: (currentPassword, newPassword) => apiCall('/users/change-password', {
+    method: 'PUT',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  }),
   getProfile: () => apiCall('/users/profile'),
   updateProfile: (data) => apiCall('/users/profile', {
     method: 'PUT',
