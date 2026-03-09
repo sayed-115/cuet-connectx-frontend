@@ -85,6 +85,22 @@ export const usersAPI = {
     return apiCall(`/users${queryString ? '?' + queryString : ''}`);
   },
   getById: (id) => apiCall(`/users/${id}`),
+  getProfile: () => apiCall('/users/profile'),
+  updateProfile: (data) => apiCall('/users/profile', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  uploadImage: async (formData) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/users/profile/image`, {
+      method: 'PUT',
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new ApiError(data.message || 'Upload failed', response.status);
+    return data;
+  },
   update: (id, data) => apiCall(`/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
@@ -149,6 +165,7 @@ export const postsAPI = {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
+  uploadImage: (file) => uploadFile('/posts/upload-image', file),
   like: (id) => apiCall(`/posts/${id}/like`, {
     method: 'POST',
   }),
@@ -164,9 +181,25 @@ export const postsAPI = {
   }),
 };
 
+// Helper: upload a file via FormData to an endpoint (no JSON content-type)
+async function uploadFile(endpoint, file, fieldName = 'image') {
+  const token = localStorage.getItem('token');
+  const formData = new FormData();
+  formData.append(fieldName, file);
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+    body: formData,
+  });
+  const data = await response.json();
+  if (!response.ok) throw new ApiError(data.message || 'Upload failed', response.status);
+  return data;
+}
+
 // Admin API
 export const adminAPI = {
   getDashboard: () => apiCall('/admin/dashboard'),
+  getStats: () => apiCall('/admin/stats'),
   getUsers: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
     return apiCall(`/admin/users${queryString ? '?' + queryString : ''}`);
@@ -185,6 +218,50 @@ export const adminAPI = {
   }),
   approveAlumni: (id) => apiCall(`/admin/users/${id}/approve`, {
     method: 'PUT',
+  }),
+  // Image uploads (Cloudinary)
+  uploadJobImage: (file) => uploadFile('/admin/upload/job-image', file),
+  uploadScholarshipImage: (file) => uploadFile('/admin/upload/scholarship-image', file),
+  uploadPostImage: (file) => uploadFile('/admin/upload/post-image', file),
+  // Jobs
+  getJobs: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiCall(`/admin/jobs${queryString ? '?' + queryString : ''}`);
+  },
+  createJob: (data) => apiCall('/admin/jobs', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  updateJob: (id, data) => apiCall(`/admin/jobs/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  deleteJob: (id) => apiCall(`/admin/jobs/${id}`, {
+    method: 'DELETE',
+  }),
+  // Scholarships
+  getScholarships: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiCall(`/admin/scholarships${queryString ? '?' + queryString : ''}`);
+  },
+  createScholarship: (data) => apiCall('/admin/scholarships', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  updateScholarship: (id, data) => apiCall(`/admin/scholarships/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  deleteScholarship: (id) => apiCall(`/admin/scholarships/${id}`, {
+    method: 'DELETE',
+  }),
+  // Community
+  getPosts: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiCall(`/admin/community${queryString ? '?' + queryString : ''}`);
+  },
+  deletePost: (id) => apiCall(`/admin/community/${id}`, {
+    method: 'DELETE',
   }),
 };
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { scholarshipsAPI } from '../services/api'
+import BaseCard from '../components/BaseCard'
 
 function Scholarships() {
   const [savedScholarships, setSavedScholarships] = useState([])
@@ -125,6 +126,7 @@ function Scholarships() {
           <div>
             <h1 className="text-3xl md:text-4xl font-bold heading-font text-gray-800 dark:text-white mb-2">Scholarship Opportunities</h1>
             <p className="text-lg text-gray-600 dark:text-gray-400">Discover funding opportunities for your academic journey</p>
+            {scholarships.map(s => s.scholarshipImage && <img key={s.id} src={s.scholarshipImage} alt="Scholarship" className="h-12 w-12 rounded object-cover mr-2 inline-block" />)}
           </div>
           <button 
             onClick={() => isLoggedIn ? setShowPostModal(true) : navigate('/login')}
@@ -343,78 +345,70 @@ function Scholarships() {
         ) : (
         <>
         {/* Scholarship Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="card-grid">
           {filteredScholarships.map(scholarship => (
-            <div key={scholarship.id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm hover:shadow-lg transition-shadow duration-300">
-              {/* Header with badge and bookmark */}
-              <div className="flex justify-between items-start mb-4">
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                  scholarship.fundingType === 'Full' 
-                    ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-400' 
-                    : 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400'
-                }`}>
-                  {scholarship.fundingType === 'Full' ? 'Fully Funded' : 'Partially Funded'}
-                </span>
+            <BaseCard key={scholarship.id}>
+              <BaseCard.Header>
+                <div className={`card-icon ${scholarship.fundingType === 'Full' ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400' : 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400'}`}>
+                  <i className="fas fa-graduation-cap text-base"></i>
+                </div>
                 <button 
                   onClick={() => handleSaveScholarship(scholarship.id)}
-                  className={`p-2 rounded-lg transition-colors ${savedScholarships.includes(scholarship.id) ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400 hover:text-gray-600'}`}
+                  className={`p-1.5 transition-colors ${savedScholarships.includes(scholarship.id) ? 'text-teal-600 dark:text-teal-400' : 'text-gray-300 hover:text-gray-500'}`}
                 >
-                  <i className={`${savedScholarships.includes(scholarship.id) ? 'fas' : 'far'} fa-bookmark`}></i>
+                  <i className={`${savedScholarships.includes(scholarship.id) ? 'fas' : 'far'} fa-bookmark text-lg`}></i>
                 </button>
-              </div>
+              </BaseCard.Header>
 
-              {/* Title */}
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3">{scholarship.name}</h3>
+              <BaseCard.Body>
+                <h3 className="card-title">{scholarship.name}</h3>
 
-              {/* Level and Location Tags */}
-              <div className="flex flex-wrap gap-2 mb-3">
-                <span className="px-2.5 py-1 bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-400 rounded-md text-xs font-medium flex items-center gap-1">
-                  <i className="fas fa-graduation-cap text-xs"></i> {scholarship.level}
-                </span>
-                <span className="px-2.5 py-1 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 rounded-md text-xs font-medium flex items-center gap-1">
-                  <i className="fas fa-map-marker-alt text-xs"></i> {scholarship.location}
-                </span>
-              </div>
-
-              {/* Description */}
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2">
-                {scholarship.description}
-              </p>
-
-              {/* Details */}
-              <div className="space-y-2 mb-4">
-                <div className="flex items-center gap-2 text-sm">
-                  <i className="fas fa-check-circle text-teal-500 w-4"></i>
-                  <span className="text-gray-500 dark:text-gray-400">Funding</span>
-                  <span className="ml-auto font-medium text-gray-700 dark:text-gray-300 text-xs">{scholarship.fundingDetails}</span>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <span className={`card-tag ${scholarship.fundingType === 'Full' ? 'card-tag-teal' : 'card-tag-amber'}`}>
+                    {scholarship.fundingType === 'Full' ? 'Fully Funded' : 'Partially Funded'}
+                  </span>
+                  <span className="card-tag card-tag-teal">
+                    <i className="fas fa-graduation-cap text-[10px]"></i> {scholarship.level}
+                  </span>
+                  <span className="card-tag card-tag-amber">
+                    <i className="fas fa-map-marker-alt text-[10px]"></i> {scholarship.location}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <i className="fas fa-calendar text-amber-500 w-4"></i>
-                  <span className="text-gray-500 dark:text-gray-400">Deadline</span>
-                  <span className="ml-auto font-medium text-amber-600 dark:text-amber-400 text-xs">{scholarship.deadline}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <i className="fas fa-clock text-teal-500 w-4"></i>
-                  <span className="text-gray-500 dark:text-gray-400">Duration</span>
-                  <span className="ml-auto font-medium text-gray-700 dark:text-gray-300 text-xs">{scholarship.duration}</span>
-                </div>
-              </div>
 
-              {/* Posted By */}
-              <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100 dark:border-gray-700">
-                <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/50 rounded-full flex items-center justify-center">
-                  <i className="fas fa-user text-teal-600 dark:text-teal-400 text-xs"></i>
-                </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  Posted by <span className="font-medium text-gray-700 dark:text-gray-300">{scholarship.postedBy.name}</span>
-                </span>
-              </div>
+                <p className="card-description mb-4">
+                  {scholarship.description}
+                </p>
 
-              {/* Action Buttons */}
-              <div className="flex gap-2">
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center gap-2 text-sm">
+                    <i className="fas fa-check-circle text-teal-500 w-4"></i>
+                    <span className="text-gray-500 dark:text-gray-400">Funding</span>
+                    <span className="ml-auto font-medium text-gray-700 dark:text-gray-300 text-xs">{scholarship.fundingDetails}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <i className="fas fa-calendar text-amber-500 w-4"></i>
+                    <span className="text-gray-500 dark:text-gray-400">Deadline</span>
+                    <span className="ml-auto font-medium text-amber-600 dark:text-amber-400 text-xs">{scholarship.deadline}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <i className="fas fa-clock text-teal-500 w-4"></i>
+                    <span className="text-gray-500 dark:text-gray-400">Duration</span>
+                    <span className="ml-auto font-medium text-gray-700 dark:text-gray-300 text-xs">{scholarship.duration}</span>
+                  </div>
+                </div>
+
+                <div className="card-meta">
+                  <div className="w-5 h-5 bg-teal-100 dark:bg-teal-900/50 rounded-full flex items-center justify-center">
+                    <i className="fas fa-user text-teal-600 dark:text-teal-400 text-[10px]"></i>
+                  </div>
+                  <span>Posted by <span className="font-medium text-gray-700 dark:text-gray-300">{scholarship.postedBy.name}</span></span>
+                </div>
+              </BaseCard.Body>
+
+              <BaseCard.Footer>
                 <button 
                   onClick={() => setShowDetailModal(scholarship)}
-                  className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  className="card-btn-outline"
                 >
                   View Details
                 </button>
@@ -422,12 +416,12 @@ function Scholarships() {
                   href={scholarship.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-teal-600 text-white hover:bg-teal-700 transition-colors flex items-center justify-center gap-2"
+                  className="card-btn-primary"
                 >
                   Learn More <i className="fas fa-external-link-alt text-xs"></i>
                 </a>
-              </div>
-            </div>
+              </BaseCard.Footer>
+            </BaseCard>
           ))}
         </div>
         

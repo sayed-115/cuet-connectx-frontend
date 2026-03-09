@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { jobsAPI } from '../services/api'
+import BaseCard from '../components/BaseCard'
 
 function Jobs() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -151,6 +152,7 @@ function Jobs() {
           <div>
             <h1 className="text-3xl md:text-4xl font-bold heading-font text-gray-800 dark:text-white mb-2">Job Opportunities</h1>
             <p className="text-lg text-gray-600 dark:text-gray-400">Explore career opportunities shared by the CUET community</p>
+            {jobs.map(job => job.jobImage && <img key={job.id} src={job.jobImage} alt="Job" className="h-12 w-12 rounded object-cover mr-2 inline-block" />)}
           </div>
           <button 
             onClick={() => isLoggedIn ? setShowPostModal(true) : navigate('/login')}
@@ -390,12 +392,11 @@ function Jobs() {
         ) : (
         <>
         {/* Job Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="card-grid">
           {filteredJobs.map(job => (
-            <div key={job.id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm hover:shadow-lg transition-shadow duration-300">
-              {/* Header with icon and bookmark */}
-              <div className="flex justify-between items-start mb-4">
-                <div className={`w-10 h-10 ${job.iconColor} rounded-lg flex items-center justify-center`}>
+            <BaseCard key={job.id}>
+              <BaseCard.Header>
+                <div className={`card-icon ${job.iconColor}`}>
                   <i className={`fas ${job.icon} text-base`}></i>
                 </div>
                 <button 
@@ -404,53 +405,44 @@ function Jobs() {
                 >
                   <i className={`${savedJobs.includes(job.id) ? 'fas' : 'far'} fa-bookmark text-lg`}></i>
                 </button>
-              </div>
+              </BaseCard.Header>
 
-              {/* Title and Company */}
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-1">{job.title}</h3>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mb-3">{job.company}</p>
+              <BaseCard.Body>
+                <h3 className="card-title">{job.title}</h3>
+                <p className="card-subtitle">{job.company}</p>
 
-              {/* Tags Row 1 - Type & Location */}
-              <div className="flex flex-wrap gap-2 mb-2">
-                <span className="px-3 py-1 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-full text-xs font-medium flex items-center gap-1.5">
-                  <i className="fas fa-briefcase text-[10px]"></i> {job.type}
-                </span>
-                <span className="px-3 py-1 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-full text-xs font-medium flex items-center gap-1.5">
-                  <i className="fas fa-map-marker-alt text-[10px]"></i> {job.location.split(',')[0]}
-                </span>
-              </div>
-              
-              {/* Tags Row 2 - Experience */}
-              <div className="mb-4">
-                <span className="px-3 py-1 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-full text-xs font-medium inline-flex items-center gap-1.5">
-                  <i className="fas fa-star text-[10px]"></i> {job.experience.split(' (')[0]}
-                </span>
-              </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <span className="card-tag card-tag-teal">
+                    <i className="fas fa-briefcase text-[10px]"></i> {job.type}
+                  </span>
+                  <span className="card-tag card-tag-teal">
+                    <i className="fas fa-map-marker-alt text-[10px]"></i> {job.location.split(',')[0]}
+                  </span>
+                  <span className="card-tag card-tag-teal">
+                    <i className="fas fa-star text-[10px]"></i> {job.experience.split(' (')[0]}
+                  </span>
+                </div>
 
-              {/* Description */}
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-3">
-                {Array.isArray(job.requirements) ? job.requirements.slice(0, 2).join('. ') + '.' : job.description}
-              </p>
+                <p className="card-description line-clamp-3 mb-4">
+                  {Array.isArray(job.requirements) ? job.requirements.slice(0, 2).join('. ') + '.' : job.description}
+                </p>
 
-              {/* Posted By */}
-              <div className="flex items-center gap-1.5 text-xs mb-2">
-                <i className="fas fa-user-circle text-teal-500"></i>
-                <span className="text-gray-500 dark:text-gray-400">Posted by</span>
-                <span className="font-medium text-teal-600 dark:text-teal-400">{job.postedBy.name}</span>
-                <span className="text-gray-400 dark:text-gray-500">({job.postedBy.type}, Batch {job.postedBy.batch})</span>
-              </div>
+                <div className="card-meta mb-1">
+                  <i className="fas fa-user-circle text-teal-500"></i>
+                  <span>Posted by</span>
+                  <span className="font-medium text-teal-600 dark:text-teal-400">{job.postedBy.name}</span>
+                  <span className="text-gray-400 dark:text-gray-500">({job.postedBy.type}, Batch {job.postedBy.batch})</span>
+                </div>
+                <div className="card-meta">
+                  <i className="far fa-clock"></i>
+                  <span>Posted {job.posted}</span>
+                </div>
+              </BaseCard.Body>
 
-              {/* Posted Time */}
-              <div className="flex items-center gap-1.5 text-gray-400 dark:text-gray-500 text-xs mb-5">
-                <i className="far fa-clock"></i>
-                <span>Posted {job.posted}</span>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
+              <BaseCard.Footer>
                 <button 
                   onClick={() => setShowDetailModal(job)}
-                  className="flex-1 py-2.5 border border-teal-500 dark:border-teal-500 rounded-lg text-teal-600 dark:text-teal-400 text-sm font-medium hover:bg-teal-50 dark:hover:bg-teal-900/30 transition-colors"
+                  className="card-btn-outline"
                 >
                   View Details
                 </button>
@@ -458,12 +450,12 @@ function Jobs() {
                   href={job.applicationLink || '#'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 py-2.5 rounded-lg text-sm font-medium bg-teal-500 text-white hover:bg-teal-600 transition-colors flex items-center justify-center gap-2"
+                  className="card-btn-primary"
                 >
                   Apply Now <i className="fas fa-external-link-alt text-xs"></i>
                 </a>
-              </div>
-            </div>
+              </BaseCard.Footer>
+            </BaseCard>
           ))}
         </div>
         

@@ -1,50 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import cuetLogo from '../assets/logos/CUET_Vector_Logo.svg.png'
-import sayedProfile from '../assets/images/sayed.jpg'
 
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { user, isLoggedIn, logout } = useAuth()
   const { isDark, toggleTheme } = useTheme()
-  const [profileImage, setProfileImage] = useState(null)
 
-  // Check if demo user
-  const isDemoUser = user?.fullName === 'Md Abu Sayed'
-
-  // Load profile image from localStorage
-  useEffect(() => {
-    if (user && !isDemoUser) {
-      const savedImage = localStorage.getItem(`profileImage_${user.studentId}`)
-      setProfileImage(savedImage)
-    } else if (isDemoUser) {
-      setProfileImage(sayedProfile)
-    } else {
-      setProfileImage(null)
-    }
-  }, [user?.studentId, isDemoUser])
-
-  // Listen for storage changes (when profile image is updated)
-  useEffect(() => {
-    const handleStorageChange = () => {
-      if (user && !isDemoUser) {
-        const savedImage = localStorage.getItem(`profileImage_${user.studentId}`)
-        setProfileImage(savedImage)
-      }
-    }
-    
-    window.addEventListener('storage', handleStorageChange)
-    // Listen for custom profile image update event (for same-tab updates)
-    window.addEventListener('profileImageUpdated', handleStorageChange)
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange)
-      window.removeEventListener('profileImageUpdated', handleStorageChange)
-    }
-  }, [user?.studentId, isDemoUser])
+  const profileImage = user?.profileImage || null
 
   const navLinks = [
     { to: '/', label: 'Home', icon: 'fa-home' },
@@ -118,6 +84,11 @@ function Navbar() {
                     <Link to="/profile" onClick={() => setDropdownOpen(false)} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
                       <i className="fas fa-user-circle text-teal-600"></i> My Profile
                     </Link>
+                    {user?.role === 'admin' && (
+                      <Link to="/admin" onClick={() => setDropdownOpen(false)} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+                        <i className="fas fa-shield-alt text-indigo-600"></i> Admin Panel
+                      </Link>
+                    )}
                     <Link to="/" onClick={() => setDropdownOpen(false)} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
                       <i className="fas fa-cog text-gray-500"></i> Settings
                     </Link>
