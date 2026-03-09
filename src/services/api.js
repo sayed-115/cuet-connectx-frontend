@@ -94,6 +94,16 @@ export const authAPI = {
     method: 'POST',
     body: JSON.stringify({ email }),
   }),
+
+  forgotPassword: (data) => apiCall('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+
+  resetPassword: (token, newPassword) => apiCall('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ token, newPassword }),
+  }),
 };
 
 // Users API
