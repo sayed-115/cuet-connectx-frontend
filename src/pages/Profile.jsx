@@ -5,7 +5,7 @@ import coverDefault from '../assets/images/cover.png'
 import { usersAPI } from '../services/api'
 
 function Profile() {
-  const { user, isLoggedIn, following, unfollowMember, updateUser } = useAuth()
+  const { user, isLoggedIn, unfollowUser, updateUser } = useAuth()
   const navigate = useNavigate()
 
   // UI states
@@ -190,9 +190,7 @@ function Profile() {
     setEditModal({ show: true, section, data })
   }
 
-  if (!user) return null
-
-  // Loading state
+  // Loading state — show before any access to `user`
   if (loading) {
     return (
       <div className="bg-gray-50 dark:bg-gray-900 min-h-screen flex items-center justify-center">
@@ -216,6 +214,8 @@ function Profile() {
     )
   }
 
+  if (!user) return null
+
   const pd = profileData || {}
 
   return (
@@ -238,11 +238,11 @@ function Profile() {
       {/* Following Modal */}
       {showFollowingModal && (
         <FollowModal
-          title={`Following (${following.length})`}
-          items={following}
+          title={`Following (${pd.following?.length || 0})`}
+          items={pd.following || []}
           onClose={() => setShowFollowingModal(false)}
           emptyText="You're not following anyone yet"
-          unfollowMember={unfollowMember}
+          unfollowMember={unfollowUser}
         />
       )}
 
@@ -307,7 +307,7 @@ function Profile() {
                 ) : profileImage ? (
                   <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
-                  user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)
+                  (user?.fullName || '?').split(' ').map(n => n[0]).join('').substring(0, 2)
                 )}
               </div>
               <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="absolute inset-0 w-28 h-28 rounded-full bg-black/50 flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 cursor-pointer z-10">
@@ -358,7 +358,7 @@ function Profile() {
             </button>
             <button className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-teal-500 dark:hover:border-teal-500 transition-all duration-200 group" onClick={() => setShowFollowingModal(true)}>
               <i className="fas fa-user-plus text-teal-600 dark:text-teal-400"></i>
-              <span className="font-bold text-gray-800 dark:text-white">{pd.following?.length || following.length}</span>
+              <span className="font-bold text-gray-800 dark:text-white">{pd.following?.length || 0}</span>
               <span className="text-gray-500 dark:text-gray-400 text-sm">Following</span>
             </button>
           </div>
@@ -521,7 +521,7 @@ function FollowModal({ title, items, onClose, emptyText, unfollowMember, isFollo
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><i className="fas fa-times text-xl"></i></button>
         </div>
         <div className="overflow-y-auto max-h-96 p-4">
-          {items.length === 0 ? (
+          {(!items || items.length === 0) ? (
             <div className="text-center py-8">
               <i className="fas fa-user-friends text-4xl text-gray-300 dark:text-gray-600 mb-3"></i>
               <p className="text-gray-500 dark:text-gray-400">{emptyText}</p>
