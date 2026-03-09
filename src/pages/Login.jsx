@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { authAPI } from '../services/api'
 import cuetLogo from '../assets/logos/CUET_Vector_Logo.svg.png'
 
 function Login() {
@@ -9,6 +10,10 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [needsVerification, setNeedsVerification] = useState(false)
+  const [verificationEmail, setVerificationEmail] = useState('')
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendMessage, setResendMessage] = useState('')
   const { login, isLoggedIn } = useAuth()
   const navigate = useNavigate()
 
@@ -33,6 +38,8 @@ function Login() {
     }
 
     setIsLoading(true)
+    setNeedsVerification(false)
+    setResendMessage('')
     
     try {
       const result = await login(studentId, password)
@@ -41,6 +48,11 @@ function Login() {
       if (result.success) {
         navigate('/profile')
       } else {
+        // Check if the error is about email verification
+        if (result.needsVerification) {
+          setNeedsVerification(true)
+          setVerificationEmail(result.email || '')
+        }
         setError(result.error)
       }
     } catch (err) {
@@ -105,6 +117,36 @@ function Login() {
               {error && (
                 <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
                   <i className="fas fa-exclamation-circle"></i> {error}
+                </div>
+              )}
+
+              {needsVerification && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-center">
+                  <p className="text-amber-700 dark:text-amber-400 text-sm mb-3">
+                    Your email is not verified yet. Check your inbox or request a new link.
+                  </p>
+                  {resendMessage && (
+                    <p className="text-teal-600 dark:text-teal-400 text-sm mb-2">{resendMessage}</p>
+                  )}
+                  <button
+                    type="button"
+                    disabled={resendLoading}
+                    onClick={async () => {
+                      if (!verificationEmail) return
+                      setResendLoading(true)
+                      setResendMessage('')
+                      try {
+                        const res = await authAPI.resendVerification(verificationEmail)
+                        setResendMessage(res.message || 'Verification email sent!')
+                      } catch (err) {
+                        setResendMessage(err.message || 'Failed to resend.')
+                      }
+                      setResendLoading(false)
+                    }}
+                    className="text-teal-600 hover:text-teal-700 font-semibold text-sm disabled:opacity-50"
+                  >
+                    {resendLoading ? 'Sending...' : 'Resend Verification Email'}
+                  </button>
                 </div>
               )}
 

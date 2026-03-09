@@ -54,9 +54,16 @@ export function AuthProvider({ children }) {
       })
 
       if (response.success) {
-        localStorage.setItem('token', response.token)
-        setUser(response.user)
-        setIsLoggedIn(true)
+        // Email verification required — do not auto-login
+        if (response.needsVerification) {
+          return { success: true, needsVerification: true, message: response.message }
+        }
+        // Fallback: if server returns token (e.g., admin-created accounts)
+        if (response.token) {
+          localStorage.setItem('token', response.token)
+          setUser(response.user)
+          setIsLoggedIn(true)
+        }
         return { success: true }
       }
       return { success: false, error: 'Registration failed' }
@@ -82,6 +89,10 @@ export function AuthProvider({ children }) {
       }
       return { success: false, error: 'Login failed' }
     } catch (error) {
+      // Propagate needsVerification flag from 403 response
+      if (error.needsVerification || error.status === 403) {
+        return { success: false, error: error.message, needsVerification: true, email: error.email }
+      }
       return { success: false, error: error.message }
     }
   }

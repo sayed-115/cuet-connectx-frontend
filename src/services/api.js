@@ -62,7 +62,10 @@ async function apiCall(endpoint, options = {}) {
     
     // Handle 403 Forbidden
     if (response.status === 403) {
-      throw new ApiError(data.message || 'You are not authorized to perform this action.', 403);
+      const err = new ApiError(data.message || 'You are not authorized to perform this action.', 403);
+      if (data.needsVerification) err.needsVerification = true;
+      if (data.email) err.email = data.email;
+      throw err;
     }
     
     throw new ApiError(data.message || 'Something went wrong', response.status);
@@ -84,6 +87,13 @@ export const authAPI = {
   }),
 
   getMe: () => apiCall('/auth/me'),
+
+  verifyEmail: (token) => apiCall(`/auth/verify-email?token=${encodeURIComponent(token)}`),
+
+  resendVerification: (email) => apiCall('/auth/resend-verification', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  }),
 };
 
 // Users API

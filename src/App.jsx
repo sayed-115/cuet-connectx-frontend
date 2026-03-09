@@ -17,6 +17,7 @@ import Terms from './pages/Terms'
 import Cookies from './pages/Cookies'
 import AdminPortal from './pages/AdminPortal'
 import AdminRoute from './components/admin/AdminRoute'
+import VerifyEmail from './pages/VerifyEmail'
 
 // Scroll to top on route change
 function ScrollToTop() {
@@ -47,6 +48,7 @@ function App() {
           <Route path="/faq" element={<FAQ />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/member/:id" element={<MemberProfile />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
