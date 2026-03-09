@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { usersAPI } from '../services/api'
+import BaseCard from '../components/BaseCard'
 
 function Community() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -161,16 +162,15 @@ function Community() {
           </div>
         ) : (
         <>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="card-grid">
           {filteredMembers.map(member => (
-            <div key={member.id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm hover:shadow-lg transition-shadow duration-300">
-              {/* Header with avatar and badge */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-14 h-14 bg-teal-100 dark:bg-teal-900/50 rounded-full flex items-center justify-center border-2 border-teal-500 overflow-hidden">
+            <BaseCard key={member.id}>
+              <BaseCard.Header>
+                <div className="card-avatar">
                   {member.profileImage ? (
                     <img src={member.profileImage} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
-                    <span className="text-teal-700 dark:text-teal-400 font-bold text-lg">{member.initials}</span>
+                    <span className="text-teal-700 dark:text-teal-400 font-bold text-sm">{member.initials}</span>
                   )}
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -180,55 +180,51 @@ function Community() {
                 }`}>
                   {member.type === 'Student' ? 'Current Student' : 'Alumni'}
                 </span>
-              </div>
+              </BaseCard.Header>
 
-              {/* Name and ID */}
-              <h3 className="font-bold text-gray-800 dark:text-white text-lg">{member.name}</h3>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mb-3">ID: {member.studentId}</p>
+              <BaseCard.Body>
+                <h3 className="card-title">{member.name}</h3>
+                <p className="card-subtitle">ID: {member.studentId}</p>
 
-              {/* Batch and Department */}
-              <div className="flex flex-wrap gap-2 mb-3">
-                <span className="px-2.5 py-1 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 rounded-md text-xs font-medium flex items-center gap-1">
-                  <i className="fas fa-calendar-alt text-xs"></i> Batch {member.batch}
-                </span>
-                <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-md text-xs flex items-center gap-1">
-                  <i className="fas fa-map-marker-alt text-xs"></i> {member.department}
-                </span>
-              </div>
-
-              {/* Bio or Position */}
-              {member.type === 'Student' ? (
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-3 line-clamp-2 min-h-[40px]">
-                  {member.bio}
-                </p>
-              ) : (
-                <p className="text-teal-600 dark:text-teal-400 text-sm mb-3 flex items-center gap-2">
-                  <i className="fas fa-briefcase"></i> {member.position}
-                </p>
-              )}
-
-              {/* Skills tags (for alumni) */}
-              {member.type === 'Alumni' && member.skills && member.skills.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  {member.skills.slice(0, 4).map((skill, idx) => (
-                    <span key={idx} className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded text-xs border border-gray-200 dark:border-gray-600">
-                      {skill}
-                    </span>
-                  ))}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <span className="card-tag card-tag-teal">
+                    <i className="fas fa-calendar-alt text-[10px]"></i> Batch {member.batch}
+                  </span>
+                  <span className="card-tag card-tag-teal">
+                    <i className="fas fa-map-marker-alt text-[10px]"></i> {member.department}
+                  </span>
                 </div>
-              )}
 
-              {/* Followers */}
-              <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-sm mb-4">
-                <i className="fas fa-users text-xs"></i>
-                <span>{member.followersCount} followers</span>
-              </div>
+                {member.type === 'Student' ? (
+                  <p className="card-description mb-3">
+                    {member.bio}
+                  </p>
+                ) : (
+                  <p className="text-teal-600 dark:text-teal-400 text-sm mb-3 flex items-center gap-2">
+                    <i className="fas fa-briefcase"></i> {member.position}
+                  </p>
+                )}
 
-              {/* Action Buttons */}
-              <div className="flex gap-2">
+                {member.type === 'Alumni' && member.skills && member.skills.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {member.skills.slice(0, 4).map((skill, idx) => (
+                      <span key={idx} className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded text-xs border border-gray-200 dark:border-gray-600">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="card-meta">
+                  <i className="fas fa-users"></i>
+                  <span>{member.followersCount} followers</span>
+                </div>
+              </BaseCard.Body>
+
+              <BaseCard.Footer>
                 <button 
                   onClick={() => handleViewProfile(member.id)}
-                  className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  className="card-btn-outline"
                 >
                   View Profile
                 </button>
@@ -243,8 +239,8 @@ function Community() {
                   <i className={`fas ${isFollowingMember(member.id) ? 'fa-user-check' : 'fa-user-plus'}`}></i>
                   {isFollowingMember(member.id) ? 'Following' : 'Follow'}
                 </button>
-              </div>
-            </div>
+              </BaseCard.Footer>
+            </BaseCard>
           ))}
         </div>
         

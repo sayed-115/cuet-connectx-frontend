@@ -99,6 +99,100 @@ body {
   transform: translateY(-4px);
 }
 
+/* ========================================
+   CARD DESIGN SYSTEM
+   ======================================== */
+
+/* Responsive Card Grid */
+.card-grid {
+  @apply grid md:grid-cols-2 lg:grid-cols-3 gap-6;
+}
+
+/* Base Card Container */
+.card-base {
+  @apply bg-white dark:bg-gray-800 rounded-2xl;
+  @apply border border-gray-100 dark:border-gray-700;
+  @apply shadow-sm p-6;
+  @apply flex flex-col h-full;
+  @apply hover:shadow-lg hover:border-teal-200 dark:hover:border-teal-800;
+  @apply transition-all duration-300;
+}
+
+.card-base:hover {
+  transform: translateY(-2px);
+}
+
+/* Card Sections */
+.card-header {
+  @apply flex items-start justify-between mb-4;
+}
+
+.card-body {
+  @apply flex-1;
+}
+
+.card-footer {
+  @apply flex gap-3 pt-4 mt-auto;
+}
+
+/* Card Icon & Avatar — consistent 48px anchor */
+.card-icon {
+  @apply w-12 h-12 rounded-xl flex items-center justify-center shrink-0;
+}
+
+.card-avatar {
+  @apply w-12 h-12 rounded-full flex items-center justify-center shrink-0 overflow-hidden;
+  @apply bg-teal-100 dark:bg-teal-900/50 border-2 border-teal-500;
+}
+
+/* Card Typography */
+.card-title {
+  @apply text-lg font-bold text-gray-800 dark:text-white mb-1;
+}
+
+.card-subtitle {
+  @apply text-sm text-gray-500 dark:text-gray-400 mb-3;
+}
+
+.card-description {
+  @apply text-gray-600 dark:text-gray-400 text-sm line-clamp-2;
+}
+
+/* Card Tags */
+.card-tag {
+  @apply px-2.5 py-1 rounded-lg text-xs font-medium inline-flex items-center gap-1;
+}
+
+.card-tag-teal {
+  @apply bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400;
+}
+
+.card-tag-amber {
+  @apply bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400;
+}
+
+.card-tag-green {
+  @apply bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400;
+}
+
+/* Card Meta Info */
+.card-meta {
+  @apply flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400;
+}
+
+/* Card Action Buttons */
+.card-btn-outline {
+  @apply flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl;
+  @apply text-gray-700 dark:text-gray-300 text-sm font-medium text-center;
+  @apply hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors;
+}
+
+.card-btn-primary {
+  @apply flex-1 py-2.5 rounded-xl text-sm font-medium;
+  @apply bg-teal-600 text-white hover:bg-teal-700;
+  @apply transition-colors flex items-center justify-center gap-2;
+}
+
 /* Button Styles */
 .btn-primary {
   @apply px-6 py-3 bg-gradient-to-r from-teal-600 to-teal-500 text-white font-semibold rounded-xl;

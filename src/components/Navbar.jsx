@@ -84,6 +84,11 @@ function Navbar() {
                     <Link to="/profile" onClick={() => setDropdownOpen(false)} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
                       <i className="fas fa-user-circle text-teal-600"></i> My Profile
                     </Link>
+                    {user?.role === 'admin' && (
+                      <Link to="/admin" onClick={() => setDropdownOpen(false)} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+                        <i className="fas fa-shield-alt text-indigo-600"></i> Admin Panel
+                      </Link>
+                    )}
                     <Link to="/" onClick={() => setDropdownOpen(false)} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
                       <i className="fas fa-cog text-gray-500"></i> Settings
                     </Link>
