@@ -89,9 +89,6 @@ function Navbar() {
                         <i className="fas fa-shield-alt text-indigo-600"></i> Admin Panel
                       </Link>
                     )}
-                    <Link to="/" onClick={() => setDropdownOpen(false)} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
-                      <i className="fas fa-cog text-gray-500"></i> Settings
-                    </Link>
                     <hr className="my-2 dark:border-gray-700" />
                     <button onClick={() => { logout(); setDropdownOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600">
                       <i className="fas fa-sign-out-alt"></i> Logout

@@ -237,7 +237,7 @@ function Community() {
                   }`}
                 >
                   <i className={`fas ${isFollowingMember(member.id) ? 'fa-user-check' : 'fa-user-plus'}`}></i>
-                  {isFollowingMember(member.id) ? 'Following' : 'Follow'}
+                  {isFollowingMember(member.id) ? 'Unfollow' : 'Follow'}
                 </button>
               </BaseCard.Footer>
             </BaseCard>
