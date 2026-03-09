@@ -31,6 +31,12 @@ function Profile() {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
 
+  // Change password modal state
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
+  const [changingPassword, setChangingPassword] = useState(false)
+  const [passwordErrors, setPasswordErrors] = useState({})
+
   // Redirect if not logged in
   useEffect(() => {
     if (!isLoggedIn) navigate('/login')
@@ -188,6 +194,29 @@ function Profile() {
       default: data = null
     }
     setEditModal({ show: true, section, data })
+  }
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    const errs = {}
+    if (!passwordData.currentPassword) errs.currentPassword = 'Current password is required'
+    if (!passwordData.newPassword) errs.newPassword = 'New password is required'
+    else if (passwordData.newPassword.length < 6) errs.newPassword = 'Password must be at least 6 characters'
+    if (passwordData.newPassword !== passwordData.confirmPassword) errs.confirmPassword = 'Passwords do not match'
+    setPasswordErrors(errs)
+    if (Object.keys(errs).length > 0) return
+
+    setChangingPassword(true)
+    try {
+      await usersAPI.changePassword(passwordData.currentPassword, passwordData.newPassword)
+      showToast('Password changed successfully! Please login again.')
+      setShowPasswordModal(false)
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+    } catch (err) {
+      showToast(err.message || 'Failed to change password', 'error')
+    } finally {
+      setChangingPassword(false)
+    }
   }
 
   // Loading state — show before any access to `user`
@@ -394,7 +423,22 @@ function Profile() {
                 )}
               </div>
             </SectionCard>
-          </div>
+
+            {/* Change Password */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                  <i className="fas fa-lock text-teal-600 text-base"></i>Security
+                </h3>
+              </div>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Manage your account security settings.</p>
+              <button
+                onClick={() => { setShowPasswordModal(true); setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' }); setPasswordErrors({}) }}
+                className="w-full px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl transition-colors duration-200 flex items-center justify-center gap-2 text-sm font-medium"
+              >
+                <i className="fas fa-key"></i> Change Password
+              </button>
+            </div>
 
           {/* Right Column */}
           <div className="lg:col-span-2 space-y-6">
@@ -452,6 +496,44 @@ function Profile() {
           </div>
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowPasswordModal(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <i className="fas fa-key text-teal-600"></i> Change Password
+              </h2>
+              <button onClick={() => setShowPasswordModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><i className="fas fa-times text-xl"></i></button>
+            </div>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Password</label>
+                <input type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} className="input-professional" placeholder="Enter current password" />
+                {passwordErrors.currentPassword && <p className="text-red-500 text-xs mt-1">{passwordErrors.currentPassword}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Password</label>
+                <input type="password" value={passwordData.newPassword} onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} className="input-professional" placeholder="Enter new password" />
+                {passwordErrors.newPassword && <p className="text-red-500 text-xs mt-1">{passwordErrors.newPassword}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm New Password</label>
+                <input type="password" value={passwordData.confirmPassword} onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} className="input-professional" placeholder="Confirm new password" />
+                {passwordErrors.confirmPassword && <p className="text-red-500 text-xs mt-1">{passwordErrors.confirmPassword}</p>}
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowPasswordModal(false)} className="flex-1 btn-secondary" disabled={changingPassword}>Cancel</button>
+                <button type="submit" className="flex-1 btn-primary flex items-center justify-center gap-2" disabled={changingPassword}>
+                  {changingPassword && <i className="fas fa-spinner fa-spin"></i>}
+                  {changingPassword ? 'Changing...' : 'Change Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editModal.show && (
