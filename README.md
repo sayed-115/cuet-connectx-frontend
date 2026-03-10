@@ -19,15 +19,17 @@ CUET ConnectX is a modern web platform designed to connect students and alumni o
 
 ### ✨ Key Features
 
-- 🔐 **User Authentication** - Secure login/signup with Student ID verification
-- 👤 **User Profiles** - Customizable profiles with cover & profile image upload
-- 👥 **Follow System** - Follow/unfollow members and see your followers & following lists
-- 💼 **Job Board** - Browse and apply to job opportunities shared by the community
-- 🎓 **Scholarships** - Discover funding opportunities for academic pursuits
-- 🌐 **Community Network** - Connect with students and alumni across the globe
-- 🌙 **Dark Mode** - Toggle between light and dark themes
-- 📱 **Responsive Design** - Optimized for desktop, tablet, and mobile devices
-- 🔗 **Backend Integration** - Connected to Node.js/Express/MongoDB backend
+- 🔐 **Authentication** — Signup with email verification, forgot/reset password, change password from profile
+- 📧 **Email Verification** — Crypto token sent via Resend; login blocked until verified
+- 🔑 **Session Security** — Password change invalidates all existing sessions
+- 👤 **User Profiles** — Customizable profiles with cover & profile image upload (Cloudinary)
+- 👥 **Follow System** — Follow/unfollow members, followers & following lists
+- 💼 **Job Board** — Browse and apply to job opportunities
+- 🎓 **Scholarships** — Discover funding opportunities
+- 🌐 **Community Network** — Connect with CUETians worldwide
+- 🛡️ **Admin Portal** — User management, content moderation, analytics
+- 🌙 **Dark Mode** — System-aware light/dark theme toggle
+- 📱 **Responsive Design** — Mobile, tablet, and desktop optimized
 
 ---
 
@@ -86,21 +88,25 @@ CUET-ConnectX/
 │   │   ├── AuthContext.jsx    # Auth, following & followers management
 │   │   └── ThemeContext.jsx   # Theme (dark/light) management
 │   ├── pages/
-│   │   ├── Home.jsx       # Landing page with hero & gallery
-│   │   ├── Jobs.jsx       # Job listings page
-│   │   ├── Scholarships.jsx   # Scholarships page
-│   │   ├── Community.jsx  # Community members page
-│   │   ├── About.jsx      # About page
-│   │   ├── FAQ.jsx        # Frequently asked questions
-│   │   ├── Login.jsx      # User login page
-│   │   ├── Signup.jsx     # User registration page
-│   │   ├── Profile.jsx    # User profile with image upload
-│   │   └── MemberProfile.jsx  # View other member profiles
+│   │   ├── Home.jsx           # Landing page
+│   │   ├── Jobs.jsx           # Job listings
+│   │   ├── Scholarships.jsx   # Scholarships
+│   │   ├── Community.jsx      # Community members
+│   │   ├── About.jsx          # About page
+│   │   ├── FAQ.jsx            # FAQ
+│   │   ├── Login.jsx          # Login (blocks unverified users)
+│   │   ├── Signup.jsx         # Registration + email verification
+│   │   ├── VerifyEmail.jsx    # Email verification handler
+│   │   ├── ForgotPassword.jsx # Forgot password form
+│   │   ├── ResetPassword.jsx  # Reset password via token
+│   │   ├── Profile.jsx        # User profile + change password
+│   │   ├── MemberProfile.jsx  # View other member profiles
+│   │   └── AdminPortal.jsx    # Admin dashboard
 │   ├── App.jsx            # Main app with scroll-to-top
 │   ├── main.jsx           # Application entry point
 │   └── index.css          # Global styles & Tailwind config
 ├── index.html             # HTML template
-├── netlify.toml           # Netlify deployment config
+├── vercel.json            # Vercel deployment config
 ├── package.json           # Project dependencies
 ├── vite.config.js         # Vite configuration
 └── README.md              # Project documentation
@@ -118,7 +124,7 @@ CUET-ConnectX/
 | **Tailwind CSS 4** | Utility-first CSS Framework |
 | **Font Awesome 6** | Icon Library |
 | **Google Fonts** | Typography (Inter, Poppins) |
-| **Netlify** | Deployment & Hosting |
+| **Vercel** | Deployment & Hosting |
 
 ---
 
@@ -180,16 +186,30 @@ CUET-ConnectX/
 
 ---
 
-## 🚀 Deployment
+## 🏗️ Architecture
 
-The app is deployed on **Netlify** with automatic builds from the main branch.
+```
+Frontend (Vercel)  →  Backend API (Render)  →  MongoDB Atlas
+                                             →  Cloudinary (images)
+                                             →  Resend (emails)
+```
 
-### Deploy your own:
+## 🔐 Authentication Flow
 
-1. Fork this repository
-2. Connect to Netlify
-3. Set build command: `npm run build`
-4. Set publish directory: `dist`
+1. **Signup** → Email verification sent → User clicks link → Account activated
+2. **Login** → Blocked if email not verified (403) → JWT issued on success
+3. **Forgot password** → Enter email/Student ID → Reset link sent → 10-min expiry
+4. **Change password** → From Profile page → All sessions invalidated → Re-login required
+
+## 🚀 Deployment (Vercel)
+
+1. Push to GitHub
+2. Import repo on [Vercel](https://vercel.com)
+3. Add environment variable:
+   - `VITE_API_URL` = `https://your-backend.onrender.com/api`
+4. Deploy — Vercel auto-detects Vite
+
+The `vercel.json` includes a rewrite rule for SPA client-side routing.
 
 ---
 
@@ -223,5 +243,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   <p>Made with ❤️ for CUETians</p>
   <p>© 2026 CUET ConnectX. All rights reserved.</p>
   
-  **[🌐 Visit Live Site](https://cuet-connectx-react.netlify.app)**
+  **[🌐 Visit Live Site](https://cuet-connectx-frontend.vercel.app)**
 </div>
