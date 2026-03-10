@@ -19,7 +19,6 @@ export function AuthProvider({ children }) {
             setIsLoggedIn(true)
           }
         } catch (error) {
-          console.log('Token expired or invalid')
           localStorage.removeItem('token')
         }
       }
@@ -30,8 +29,7 @@ export function AuthProvider({ children }) {
 
   // Listen for forced logout events (e.g., token expired)
   useEffect(() => {
-    const handleForcedLogout = (event) => {
-      console.log('Session expired, logging out...', event.detail?.reason)
+    const handleForcedLogout = () => {
       setUser(null)
       setIsLoggedIn(false)
     }

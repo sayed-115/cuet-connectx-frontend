@@ -10,14 +10,14 @@ const DEPARTMENT_CODES = {
   '02': 'Electrical & Electronic Engineering',
   '03': 'Mechanical Engineering',
   '04': 'Computer Science & Engineering',
-  '05': 'Electronics & Communication Engineering',
-  '06': 'Urban & Regional Planning',
+  '05': 'Urban & Regional Planning',
+  '06': 'Architecture',
   '07': 'Petroleum & Mining Engineering',
-  '08': 'Architecture',
-  '09': 'Physics',
-  '10': 'Chemistry',
-  '11': 'Mathematics',
-  '12': 'Humanities',
+  '08': 'Electronics & Telecommunication Engineering',
+  '09': 'Mechatronics & Industrial Engineering',
+  '10': 'Water Resources Engineering',
+  '11': 'Biomedical Engineering',
+  '12': 'Materials Science & Engineering',
 }
 
 // Short department names for display
@@ -26,14 +26,14 @@ const DEPARTMENT_SHORT = {
   '02': 'EEE',
   '03': 'ME',
   '04': 'CSE',
-  '05': 'ECE',
-  '06': 'URP',
+  '05': 'URP',
+  '06': 'ARCH',
   '07': 'PME',
-  '08': 'ARCH',
-  '09': 'PHY',
-  '10': 'CHEM',
-  '11': 'MATH',
-  '12': 'HUM',
+  '08': 'ETE',
+  '09': 'MIE',
+  '10': 'WRE',
+  '11': 'BME',
+  '12': 'MSE',
 }
 
 // Parse student ID and extract info

@@ -5,7 +5,7 @@ import coverDefault from '../assets/images/cover.png'
 import { usersAPI } from '../services/api'
 
 function Profile() {
-  const { user, isLoggedIn, unfollowUser, updateUser } = useAuth()
+  const { user, isLoggedIn, unfollowUser, updateUser, logout } = useAuth()
   const navigate = useNavigate()
 
   // UI states
@@ -201,7 +201,7 @@ function Profile() {
     const errs = {}
     if (!passwordData.currentPassword) errs.currentPassword = 'Current password is required'
     if (!passwordData.newPassword) errs.newPassword = 'New password is required'
-    else if (passwordData.newPassword.length < 6) errs.newPassword = 'Password must be at least 6 characters'
+    else if (passwordData.newPassword.length < 8) errs.newPassword = 'Password must be at least 8 characters'
     if (passwordData.newPassword !== passwordData.confirmPassword) errs.confirmPassword = 'Passwords do not match'
     setPasswordErrors(errs)
     if (Object.keys(errs).length > 0) return
@@ -209,9 +209,11 @@ function Profile() {
     setChangingPassword(true)
     try {
       await usersAPI.changePassword(passwordData.currentPassword, passwordData.newPassword)
-      showToast('Password changed successfully! Please login again.')
+      showToast('Password changed successfully! Redirecting to login...')
       setShowPasswordModal(false)
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      // Explicitly log out and redirect since the JWT is now invalidated
+      setTimeout(() => { logout(); navigate('/login') }, 1500)
     } catch (err) {
       showToast(err.message || 'Failed to change password', 'error')
     } finally {
@@ -439,6 +441,7 @@ function Profile() {
                 <i className="fas fa-key"></i> Change Password
               </button>
             </div>
+          </div>
 
           {/* Right Column */}
           <div className="lg:col-span-2 space-y-6">

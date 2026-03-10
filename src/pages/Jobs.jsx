@@ -25,11 +25,8 @@ function Jobs() {
     const fetchJobs = async () => {
       try {
         setLoading(true)
-        console.log('Fetching jobs...')
         const response = await jobsAPI.getAll()
-        console.log('Jobs API response:', response)
         if (response.success) {
-          console.log('Jobs found:', response.jobs.length)
           const formattedJobs = response.jobs.map(job => ({
             id: job._id,
             title: job.title,
@@ -55,9 +52,6 @@ function Jobs() {
             iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
           }))
           setJobs(formattedJobs)
-          console.log('Formatted jobs:', formattedJobs.length)
-        } else {
-          console.log('API returned success: false', response)
         }
       } catch (error) {
         console.error('Error fetching jobs:', error)

@@ -35,9 +35,7 @@ function Scholarships() {
     const fetchScholarships = async () => {
       try {
         setLoading(true)
-        console.log('Fetching scholarships...')
         const response = await scholarshipsAPI.getAll()
-        console.log('Scholarships API response:', response)
         if (response.success) {
           const formattedScholarships = response.scholarships.map(s => ({
             id: s._id,
