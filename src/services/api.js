@@ -1,5 +1,17 @@
 // API Service for CUET-ConnectX
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+const fallbackApiUrl = import.meta.env.DEV
+  ? 'http://localhost:5000/api'
+  : `${window.location.origin.replace(/\/+$/, '')}/api`;
+const API_URL = configuredApiUrl || fallbackApiUrl;
+
+if (!configuredApiUrl) {
+  console.warn(`[API] VITE_API_URL is not set. Using fallback API URL: ${API_URL}`);
+}
+
+if (import.meta.env.PROD && /localhost/i.test(API_URL)) {
+  console.error('[API] Production build is pointing to localhost. Set VITE_API_URL to your deployed backend URL.');
+}
 
 // Custom error class for API errors
 export class ApiError extends Error {
@@ -23,6 +35,11 @@ const handleLogout = () => {
 // Helper function for API calls
 async function apiCall(endpoint, options = {}) {
   const token = localStorage.getItem('token');
+
+  const method = options.method || 'GET';
+  if (import.meta.env.DEV) {
+    console.debug(`[API] ${method} ${endpoint}`);
+  }
   
   const config = {
     headers: {
@@ -48,6 +65,15 @@ async function apiCall(endpoint, options = {}) {
   const contentType = response.headers.get('content-type');
   if (contentType && contentType.includes('application/json')) {
     data = await response.json();
+  }
+
+  if (import.meta.env.DEV) {
+    console.debug('[API] Response', {
+      method,
+      endpoint,
+      status: response.status,
+      ok: response.ok,
+    });
   }
 
   if (!response.ok) {
