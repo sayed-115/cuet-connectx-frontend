@@ -1,8 +1,16 @@
 // API Service for CUET-ConnectX
-const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+const RAILWAY_API_URL = 'https://cuet-connectx-api-production.up.railway.app/api';
+let configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+const isLegacyRenderApi = /cuet-connectx-backend.*\.onrender\.com\/api/i.test(configuredApiUrl);
+
+if (import.meta.env.PROD && isLegacyRenderApi) {
+  console.warn(`[API] Legacy Render API detected (${configuredApiUrl}). Switching to Railway API: ${RAILWAY_API_URL}`);
+  configuredApiUrl = RAILWAY_API_URL;
+}
+
 const fallbackApiUrl = import.meta.env.DEV
   ? 'http://localhost:5000/api'
-  : `${window.location.origin.replace(/\/+$/, '')}/api`;
+  : RAILWAY_API_URL;
 const API_URL = configuredApiUrl || fallbackApiUrl;
 
 if (!configuredApiUrl) {
