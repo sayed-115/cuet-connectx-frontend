@@ -1,15 +1,23 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { scholarshipsAPI } from '../services/api'
 import BaseCard from '../components/BaseCard'
 
+const INITIAL_FILTERS = {
+  search: '',
+  type: '',
+  location: '',
+  experience: '',
+  department: '',
+  batch: '',
+  role: '',
+}
+
 function Scholarships() {
   const [savedScholarships, setSavedScholarships] = useState([])
-  const [searchTerm, setSearchTerm] = useState('')
-  const [level, setLevel] = useState('All Levels')
-  const [location, setLocation] = useState('All Locations')
-  const [fundingType, setFundingType] = useState('Funding Type')
+  const [filters, setFilters] = useState(INITIAL_FILTERS)
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [showPostModal, setShowPostModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
   const [newScholarship, setNewScholarship] = useState({ 
@@ -27,22 +35,65 @@ function Scholarships() {
   })
   const [scholarships, setScholarships] = useState([])
   const [loading, setLoading] = useState(true)
+  const scholarshipsCacheRef = useRef(new Map())
   const { isLoggedIn, user } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(filters.search.toLowerCase().trim())
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [filters.search])
+
+  const activeFilters = useMemo(() => ({
+    search: debouncedSearch,
+    type: filters.type,
+    location: filters.location,
+    experience: filters.experience,
+    role: filters.role,
+  }), [debouncedSearch, filters.type, filters.location, filters.experience, filters.role])
+
+  useEffect(() => {
+    console.debug('[Scholarships] selected filters', filters)
+  }, [filters])
 
   // Fetch scholarships from API
   useEffect(() => {
     const fetchScholarships = async () => {
+      const cacheKey = JSON.stringify(activeFilters)
+      if (scholarshipsCacheRef.current.has(cacheKey)) {
+        const cached = scholarshipsCacheRef.current.get(cacheKey)
+        console.debug('[Scholarships] cache hit', activeFilters)
+        setScholarships(cached)
+        setLoading(false)
+        return
+      }
+
       try {
         setLoading(true)
-        const response = await scholarshipsAPI.getAll()
+        console.debug('[Scholarships] API request params', activeFilters)
+        const response = await scholarshipsAPI.getAll(activeFilters)
         if (response.success) {
           const formattedScholarships = response.scholarships.map(s => ({
             id: s._id,
             name: s.title,
-            level: "Master's, PhD",
-            location: 'International',
-            fundingType: s.amount?.toLowerCase().includes('full') ? 'Full' : 'Partial',
+            level: s.description?.toLowerCase().includes('undergraduate')
+              ? 'Undergraduate'
+              : s.description?.toLowerCase().includes('postdoc')
+                ? 'Postdoc'
+                : s.description?.toLowerCase().includes('phd')
+                  ? 'PhD'
+                  : "Master's, PhD",
+            location: s.description?.toLowerCase().includes('bangladesh') ? 'Bangladesh' : 'International',
+            fundingType: s.amount?.toLowerCase().includes('full')
+              ? 'Full'
+              : s.amount?.toLowerCase().includes('tuition')
+                ? 'Tuition Only'
+                : s.amount?.toLowerCase().includes('stipend')
+                  ? 'Stipend'
+                  : 'Partial',
             duration: '1-4 years',
             fundingDetails: s.amount || 'Varies',
             deadline: s.deadline ? new Date(s.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
@@ -51,8 +102,16 @@ function Scholarships() {
             benefits: s.amount || 'Full funding available',
             description: s.description || s.title,
             organization: s.organization,
-            postedBy: s.postedBy ? { name: s.postedBy.fullName, type: 'Alumni' } : { name: 'CUET Alumni', type: 'Alumni' }
+            postedBy: s.postedBy
+              ? {
+                name: s.postedBy.fullName,
+                type: (s.postedBy.role || s.postedBy.userType || 'Alumni').replace(/^./, (c) => c.toUpperCase())
+              }
+              : { name: 'CUET Alumni', type: 'Alumni' }
           }))
+
+          console.debug('[Scholarships] response count', formattedScholarships.length)
+          scholarshipsCacheRef.current.set(cacheKey, formattedScholarships)
           setScholarships(formattedScholarships)
         }
       } catch (error) {
@@ -62,11 +121,31 @@ function Scholarships() {
       }
     }
     fetchScholarships()
-  }, [])
+  }, [activeFilters])
 
-  const levels = ['All Levels', 'Undergraduate', "Master's", 'PhD', 'Postdoc']
-  const locations = ['All Locations', 'Bangladesh', 'USA', 'UK', 'Europe', 'Asia', 'Australia']
-  const fundingTypes = ['Funding Type', 'Full', 'Partial', 'Tuition Only', 'Stipend']
+  const levels = [
+    { label: 'All Levels', value: '' },
+    { label: 'Undergraduate', value: 'undergraduate' },
+    { label: "Master's", value: 'masters' },
+    { label: 'PhD', value: 'phd' },
+    { label: 'Postdoc', value: 'postdoc' },
+  ]
+  const locations = [
+    { label: 'All Locations', value: '' },
+    { label: 'Bangladesh', value: 'bangladesh' },
+    { label: 'USA', value: 'usa' },
+    { label: 'UK', value: 'uk' },
+    { label: 'Europe', value: 'europe' },
+    { label: 'Asia', value: 'asia' },
+    { label: 'Australia', value: 'australia' },
+  ]
+  const fundingTypes = [
+    { label: 'Funding Type', value: '' },
+    { label: 'Full', value: 'full' },
+    { label: 'Partial', value: 'partial' },
+    { label: 'Tuition Only', value: 'tuition only' },
+    { label: 'Stipend', value: 'stipend' },
+  ]
 
   const handleSaveScholarship = (scholarshipId) => {
     if (!isLoggedIn) {
@@ -108,14 +187,7 @@ function Scholarships() {
     setShowPostModal(false)
   }
 
-  const filteredScholarships = scholarships.filter(s => {
-    const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.description.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesLevel = level === 'All Levels' || s.level.includes(level.replace("'s", ""))
-    const matchesLocation = location === 'All Locations' || s.location === location
-    const matchesFunding = fundingType === 'Funding Type' || s.fundingType === fundingType
-    return matchesSearch && matchesLevel && matchesLocation && matchesFunding
-  })
+  const filteredScholarships = scholarships
 
   return (
     <div className="py-16 bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -143,13 +215,13 @@ function Scholarships() {
             <input
               type="text"
               placeholder="Search scholarships by name, keywords..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={filters.search}
+              onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
               className="input-professional pl-12"
             />
-            {searchTerm && (
+            {filters.search && (
               <button 
-                onClick={() => setSearchTerm('')}
+                onClick={() => setFilters(prev => ({ ...prev, search: '' }))}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <i className="fas fa-times"></i>
@@ -158,15 +230,30 @@ function Scholarships() {
           </div>
           
           <div className="flex flex-wrap items-center gap-4">
-            <select value={level} onChange={(e) => setLevel(e.target.value)} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
-              {levels.map(l => <option key={l} value={l}>{l}</option>)}
+            <select value={filters.experience} onChange={(e) => setFilters(prev => ({ ...prev, experience: e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+              {levels.map(l => <option key={l.label} value={l.value}>{l.label}</option>)}
             </select>
-            <select value={location} onChange={(e) => setLocation(e.target.value)} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
-              {locations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+            <select value={filters.location} onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+              {locations.map(loc => <option key={loc.label} value={loc.value}>{loc.label}</option>)}
             </select>
-            <select value={fundingType} onChange={(e) => setFundingType(e.target.value)} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
-              {fundingTypes.map(f => <option key={f} value={f}>{f}</option>)}
+            <select value={filters.type} onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+              {fundingTypes.map(f => <option key={f.label} value={f.value}>{f.label}</option>)}
             </select>
+            <label className="flex items-center gap-2 text-gray-700 dark:text-gray-300 cursor-pointer ml-2">
+              <input
+                type="checkbox"
+                checked={filters.role === 'alumni'}
+                onChange={(e) => setFilters(prev => ({ ...prev, role: e.target.checked ? 'alumni' : '' }))}
+                className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+              />
+              Posted by Alumni
+            </label>
+            <button
+              onClick={() => setFilters(INITIAL_FILTERS)}
+              className="px-4 py-2.5 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Clear All Filters
+            </button>
           </div>
         </div>
 
@@ -427,7 +514,7 @@ function Scholarships() {
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <i className="fas fa-search text-4xl mb-4 opacity-50"></i>
             <p>No scholarships found matching your criteria</p>
-            <button onClick={() => { setSearchTerm(''); setLevel('All Levels'); setLocation('All Locations'); setFundingType('Funding Type'); }} className="mt-4 text-teal-600 hover:underline">Clear all filters</button>
+            <button onClick={() => setFilters(INITIAL_FILTERS)} className="mt-4 text-teal-600 hover:underline">Clear all filters</button>
           </div>
         )}
       </>

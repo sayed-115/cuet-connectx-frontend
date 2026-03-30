@@ -13,6 +13,23 @@ const fallbackApiUrl = import.meta.env.DEV
   : RAILWAY_API_URL;
 const API_URL = configuredApiUrl || fallbackApiUrl;
 
+function normalizeFilterValue(value) {
+  if (typeof value === 'string') return value.toLowerCase().trim();
+  if (typeof value === 'number') return String(value);
+  return value;
+}
+
+function cleanQueryParams(params = {}) {
+  const cleaned = {};
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    const normalized = normalizeFilterValue(value);
+    if (normalized === '') return;
+    cleaned[key] = normalized;
+  });
+  return cleaned;
+}
+
 if (!configuredApiUrl) {
   console.warn(`[API] VITE_API_URL is not set. Using fallback API URL: ${API_URL}`);
 }
@@ -143,7 +160,11 @@ export const authAPI = {
 // Users API
 export const usersAPI = {
   getAll: (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
+    const cleaned = cleanQueryParams(params);
+    if (import.meta.env.DEV) {
+      console.debug('[usersAPI] params', cleaned);
+    }
+    const queryString = new URLSearchParams(cleaned).toString();
     return apiCall(`/users${queryString ? '?' + queryString : ''}`);
   },
   getById: (id) => apiCall(`/users/${id}`),
@@ -186,7 +207,14 @@ export const usersAPI = {
 
 // Jobs API
 export const jobsAPI = {
-  getAll: () => apiCall('/jobs'),
+  getAll: (params = {}) => {
+    const cleaned = cleanQueryParams(params);
+    if (import.meta.env.DEV) {
+      console.debug('[jobsAPI] params', cleaned);
+    }
+    const queryString = new URLSearchParams(cleaned).toString();
+    return apiCall(`/jobs${queryString ? '?' + queryString : ''}`);
+  },
   getById: (id) => apiCall(`/jobs/${id}`),
   create: (data) => apiCall('/jobs', {
     method: 'POST',
@@ -204,7 +232,11 @@ export const jobsAPI = {
 // Scholarships API
 export const scholarshipsAPI = {
   getAll: (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
+    const cleaned = cleanQueryParams(params);
+    if (import.meta.env.DEV) {
+      console.debug('[scholarshipsAPI] params', cleaned);
+    }
+    const queryString = new URLSearchParams(cleaned).toString();
     return apiCall(`/scholarships${queryString ? '?' + queryString : ''}`);
   },
   getById: (id) => apiCall(`/scholarships/${id}`),
