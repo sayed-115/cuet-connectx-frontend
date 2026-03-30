@@ -1,35 +1,70 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { jobsAPI } from '../services/api'
 import BaseCard from '../components/BaseCard'
 
+const INITIAL_FILTERS = {
+  search: '',
+  type: '',
+  location: '',
+  experience: '',
+  department: '',
+  batch: '',
+  role: '',
+}
+
 function Jobs() {
-  const [searchTerm, setSearchTerm] = useState('')
+  const [filters, setFilters] = useState(INITIAL_FILTERS)
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [appliedJobs, setAppliedJobs] = useState([])
   const [savedJobs, setSavedJobs] = useState([])
-  const [jobType, setJobType] = useState('All Job Types')
-  const [location, setLocation] = useState('All Locations')
-  const [experienceLevel, setExperienceLevel] = useState('Experience Level')
-  const [postedByAlumni, setPostedByAlumni] = useState(false)
   const [showPostModal, setShowPostModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
   const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
+  const jobsCacheRef = useRef(new Map())
   const { isLoggedIn } = useAuth()
   const navigate = useNavigate()
 
-  // Fetch jobs from API
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(filters.search.toLowerCase().trim())
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [filters.search])
+
+  const activeFilters = useMemo(() => ({
+    search: debouncedSearch,
+    type: filters.type,
+    location: filters.location,
+    experience: filters.experience,
+    role: filters.role,
+  }), [debouncedSearch, filters.type, filters.location, filters.experience, filters.role])
+
+  useEffect(() => {
+    console.debug('[Jobs] selected filters', filters)
+  }, [filters])
+
+  // Fetch jobs from API with combined filters
   useEffect(() => {
     const fetchJobs = async () => {
+      const cacheKey = JSON.stringify(activeFilters)
+      if (jobsCacheRef.current.has(cacheKey)) {
+        const cached = jobsCacheRef.current.get(cacheKey)
+        console.debug('[Jobs] cache hit', activeFilters)
+        setJobs(cached)
+        setLoading(false)
+        return
+      }
+
       try {
         setLoading(true)
-        console.log('Fetching jobs...')
-        const response = await jobsAPI.getAll()
-        console.log('Jobs API response:', response)
+        console.debug('[Jobs] API request params', activeFilters)
+        const response = await jobsAPI.getAll(activeFilters)
         if (response.success) {
-          console.log('Jobs found:', response.jobs.length)
           const formattedJobs = response.jobs.map(job => ({
             id: job._id,
             title: job.title,
@@ -40,7 +75,7 @@ function Jobs() {
             salary: job.salary ? `${job.salary.currency} ${job.salary.min?.toLocaleString()}-${job.salary.max?.toLocaleString()}` : 'Competitive',
             experience: job.experience || 'Entry Level',
             deadline: job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
-            postedByAlumni: true,
+            postedByAlumni: (job.postedBy?.role || job.postedBy?.userType || '').toLowerCase() === 'alumni',
             postedBy: job.postedBy ? { 
               name: job.postedBy.fullName, 
               type: 'Alumni', 
@@ -54,10 +89,10 @@ function Jobs() {
             icon: 'fa-briefcase',
             iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
           }))
+
+          console.debug('[Jobs] response count', formattedJobs.length)
+          jobsCacheRef.current.set(cacheKey, formattedJobs)
           setJobs(formattedJobs)
-          console.log('Formatted jobs:', formattedJobs.length)
-        } else {
-          console.log('API returned success: false', response)
         }
       } catch (error) {
         console.error('Error fetching jobs:', error)
@@ -66,7 +101,7 @@ function Jobs() {
       }
     }
     fetchJobs()
-  }, [])
+  }, [activeFilters])
 
   // Helper function to get time ago
   const getTimeAgo = (dateString) => {
@@ -81,9 +116,30 @@ function Jobs() {
     return `${Math.ceil(diffDays / 30)} months ago`
   }
 
-  const jobTypes = ['All Job Types', 'Full-time', 'Part-time', 'Contract', 'Internship', 'Remote']
-  const locations = ['All Locations', 'Remote', 'Dhaka', 'Chittagong', 'San Francisco', 'New York', 'London']
-  const experienceLevels = ['Experience Level', 'Entry Level', 'Intermediate', 'Senior Level', 'Lead/Manager']
+  const jobTypes = [
+    { label: 'All Job Types', value: '' },
+    { label: 'Full-time', value: 'full-time' },
+    { label: 'Part-time', value: 'part-time' },
+    { label: 'Contract', value: 'contract' },
+    { label: 'Internship', value: 'internship' },
+    { label: 'Remote', value: 'remote' },
+  ]
+  const locations = [
+    { label: 'All Locations', value: '' },
+    { label: 'Remote', value: 'remote' },
+    { label: 'Dhaka', value: 'dhaka' },
+    { label: 'Chittagong', value: 'chittagong' },
+    { label: 'San Francisco', value: 'san francisco' },
+    { label: 'New York', value: 'new york' },
+    { label: 'London', value: 'london' },
+  ]
+  const experienceLevels = [
+    { label: 'Experience Level', value: '' },
+    { label: 'Entry Level', value: 'entry level' },
+    { label: 'Intermediate', value: 'intermediate' },
+    { label: 'Senior Level', value: 'senior level' },
+    { label: 'Lead/Manager', value: 'lead/manager' },
+  ]
 
   const handleApply = (jobId) => {
     if (!isLoggedIn) {
@@ -134,16 +190,7 @@ function Jobs() {
     setShowPostModal(false)
   }
 
-  const filteredJobs = jobs.filter(job => {
-    const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.location.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesType = jobType === 'All Job Types' || job.type === jobType
-    const matchesLocation = location === 'All Locations' || job.location === location
-    const matchesExperience = experienceLevel === 'Experience Level' || job.experience === experienceLevel
-    const matchesAlumni = !postedByAlumni || job.postedByAlumni
-    return matchesSearch && matchesType && matchesLocation && matchesExperience && matchesAlumni
-  })
+  const filteredJobs = jobs
 
   return (
     <div className="py-16 bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -171,13 +218,13 @@ function Jobs() {
             <input
               type="text"
               placeholder="Search jobs by title, company, or keywords..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={filters.search}
+              onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
               className="input-professional pl-12"
             />
-            {searchTerm && (
+            {filters.search && (
               <button 
-                onClick={() => setSearchTerm('')}
+                onClick={() => setFilters(prev => ({ ...prev, search: '' }))}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <i className="fas fa-times"></i>
@@ -186,24 +233,30 @@ function Jobs() {
           </div>
           
           <div className="flex flex-wrap items-center gap-4">
-            <select value={jobType} onChange={(e) => setJobType(e.target.value)} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
-              {jobTypes.map(type => <option key={type} value={type}>{type}</option>)}
+            <select value={filters.type} onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+              {jobTypes.map(type => <option key={type.label} value={type.value}>{type.label}</option>)}
             </select>
-            <select value={location} onChange={(e) => setLocation(e.target.value)} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
-              {locations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+            <select value={filters.location} onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+              {locations.map(loc => <option key={loc.label} value={loc.value}>{loc.label}</option>)}
             </select>
-            <select value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value)} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
-              {experienceLevels.map(exp => <option key={exp} value={exp}>{exp}</option>)}
+            <select value={filters.experience} onChange={(e) => setFilters(prev => ({ ...prev, experience: e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+              {experienceLevels.map(exp => <option key={exp.label} value={exp.value}>{exp.label}</option>)}
             </select>
             <label className="flex items-center gap-2 text-gray-700 dark:text-gray-300 cursor-pointer ml-2">
               <input 
                 type="checkbox" 
-                checked={postedByAlumni} 
-                onChange={(e) => setPostedByAlumni(e.target.checked)}
+                checked={filters.role === 'alumni'} 
+                onChange={(e) => setFilters(prev => ({ ...prev, role: e.target.checked ? 'alumni' : '' }))}
                 className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
               />
               Posted by Alumni
             </label>
+            <button
+              onClick={() => setFilters(INITIAL_FILTERS)}
+              className="px-4 py-2.5 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Clear All Filters
+            </button>
           </div>
         </div>
 
@@ -463,7 +516,7 @@ function Jobs() {
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <i className="fas fa-search text-4xl mb-4 opacity-50"></i>
             <p>No jobs found matching your criteria</p>
-            <button onClick={() => { setSearchTerm(''); setJobType('All Job Types'); setLocation('All Locations'); setExperienceLevel('Experience Level'); setPostedByAlumni(false); }} className="mt-4 text-teal-600 hover:underline">Clear all filters</button>
+            <button onClick={() => setFilters(INITIAL_FILTERS)} className="mt-4 text-teal-600 hover:underline">Clear all filters</button>
           </div>
         )}
         </>

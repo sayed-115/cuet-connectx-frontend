@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { authAPI } from '../services/api'
 import cuetLogo from '../assets/logos/CUET_Vector_Logo.svg.png'
 
 // Department code mapping
@@ -9,14 +10,14 @@ const DEPARTMENT_CODES = {
   '02': 'Electrical & Electronic Engineering',
   '03': 'Mechanical Engineering',
   '04': 'Computer Science & Engineering',
-  '05': 'Electronics & Communication Engineering',
-  '06': 'Urban & Regional Planning',
+  '05': 'Urban & Regional Planning',
+  '06': 'Architecture',
   '07': 'Petroleum & Mining Engineering',
-  '08': 'Architecture',
-  '09': 'Physics',
-  '10': 'Chemistry',
-  '11': 'Mathematics',
-  '12': 'Humanities',
+  '08': 'Electronics & Telecommunication Engineering',
+  '09': 'Mechatronics & Industrial Engineering',
+  '10': 'Water Resources Engineering',
+  '11': 'Biomedical Engineering',
+  '12': 'Materials Science & Engineering',
 }
 
 // Short department names for display
@@ -25,14 +26,14 @@ const DEPARTMENT_SHORT = {
   '02': 'EEE',
   '03': 'ME',
   '04': 'CSE',
-  '05': 'ECE',
-  '06': 'URP',
+  '05': 'URP',
+  '06': 'ARCH',
   '07': 'PME',
-  '08': 'ARCH',
-  '09': 'PHY',
-  '10': 'CHEM',
-  '11': 'MATH',
-  '12': 'HUM',
+  '08': 'ETE',
+  '09': 'MIE',
+  '10': 'WRE',
+  '11': 'BME',
+  '12': 'MSE',
 }
 
 // Parse student ID and extract info
@@ -64,6 +65,9 @@ function Signup() {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [parsedId, setParsedId] = useState({ valid: false, batch: null, department: null, departmentShort: null, roll: null })
+  const [registrationSuccess, setRegistrationSuccess] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendMessage, setResendMessage] = useState('')
   const { register, isLoggedIn } = useAuth()
   const navigate = useNavigate()
 
@@ -122,7 +126,11 @@ function Signup() {
       setIsLoading(false)
       
       if (result.success) {
-        navigate('/profile')
+        if (result.needsVerification) {
+          setRegistrationSuccess(true)
+        } else {
+          navigate('/profile')
+        }
       } else {
         setError(result.error)
       }
@@ -130,6 +138,59 @@ function Signup() {
       setIsLoading(false)
       setError(err.message || 'Registration failed. Please try again.')
     }
+  }
+
+  const handleResendVerification = async () => {
+    setResendLoading(true)
+    setResendMessage('')
+    try {
+      const response = await authAPI.resendVerification(formData.email)
+      setResendMessage(response.message || 'Verification email sent!')
+    } catch (err) {
+      setResendMessage(err.message || 'Failed to resend. Try again later.')
+    }
+    setResendLoading(false)
+  }
+
+  // Show success screen after registration
+  if (registrationSuccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center border border-gray-100 dark:border-gray-700">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-teal-50 dark:bg-teal-900/30 flex items-center justify-center">
+            <i className="fas fa-envelope text-3xl text-teal-600 dark:text-teal-400"></i>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-white heading-font mb-2">Check Your Email</h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-2">
+            We've sent a verification link to:
+          </p>
+          <p className="font-semibold text-teal-600 dark:text-teal-400 mb-6">{formData.email}</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm mb-6">
+            Click the link in the email to verify your account. The link expires in 24 hours.
+          </p>
+
+          {resendMessage && (
+            <div className="bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 px-4 py-3 rounded-xl text-sm mb-4">
+              {resendMessage}
+            </div>
+          )}
+
+          <button
+            onClick={handleResendVerification}
+            disabled={resendLoading}
+            className="text-teal-600 hover:text-teal-700 font-semibold text-sm disabled:opacity-50"
+          >
+            {resendLoading ? 'Sending...' : "Didn't receive the email? Resend"}
+          </button>
+
+          <div className="mt-6">
+            <Link to="/login" className="inline-block bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors">
+              Go to Login
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

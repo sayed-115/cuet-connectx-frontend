@@ -1,29 +1,69 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { usersAPI } from '../services/api'
 import BaseCard from '../components/BaseCard'
 
+const INITIAL_FILTERS = {
+  search: '',
+  type: '',
+  location: '',
+  experience: '',
+  department: '',
+  batch: '',
+  role: '',
+}
+
 function Community() {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [memberType, setMemberType] = useState('All Members')
-  const [department, setDepartment] = useState('All Departments')
-  const [batchFilter, setBatchFilter] = useState('All Batches')
+  const [filters, setFilters] = useState(INITIAL_FILTERS)
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [members, setMembers] = useState([])
+  const [batchOptions, setBatchOptions] = useState([])
   const [loading, setLoading] = useState(true)
+  const membersCacheRef = useRef(new Map())
   const { isLoggedIn, user, isFollowingMember, followUser, unfollowUser } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(filters.search.toLowerCase().trim())
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [filters.search])
+
+  const activeFilters = useMemo(() => ({
+    search: debouncedSearch,
+    department: filters.department,
+    batch: filters.batch,
+    role: filters.role,
+  }), [debouncedSearch, filters.department, filters.batch, filters.role])
+
+  useEffect(() => {
+    console.debug('[Community] selected filters', filters)
+  }, [filters])
 
   // Fetch users from API
   useEffect(() => {
     const fetchUsers = async () => {
+      const currentUserStudentId = user?.studentId || ''
+      const cacheKey = JSON.stringify({ ...activeFilters, currentUserStudentId })
+
+      if (membersCacheRef.current.has(cacheKey)) {
+        const cached = membersCacheRef.current.get(cacheKey)
+        console.debug('[Community] cache hit', activeFilters)
+        setMembers(cached)
+        setLoading(false)
+        return
+      }
+
       try {
         setLoading(true)
-        const response = await usersAPI.getAll()
+        console.debug('[Community] API request params', activeFilters)
+        const response = await usersAPI.getAll(activeFilters)
         if (response.success) {
           // Filter out current user and ensure unique student IDs
           const seenStudentIds = new Set()
-          const currentUserStudentId = user?.studentId
           
           const formattedMembers = response.users
             .filter(u => {
@@ -36,20 +76,29 @@ function Community() {
               seenStudentIds.add(u.studentId);
               return true;
             })
-            .map(u => ({
+            .map(u => {
+              const studentIdText = String(u.studentId || '')
+
+              return {
               id: u._id,
               name: u.fullName,
               studentId: u.studentId,
-              batch: u.batch || '20' + u.studentId.substring(0, 2),
+              batch: u.batch || (studentIdText.length >= 2 ? `20${studentIdText.substring(0, 2)}` : 'Unknown'),
               department: u.departmentShort || 'CSE',
               profileImage: u.profileImage || null,
               initials: u.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
-              type: u.userType === 'alumni' ? 'Alumni' : 'Student',
+              type: (u.role || u.userType) === 'alumni' ? 'Alumni' : 'Student',
               bio: u.about || 'CUET community member',
               position: u.currentProfession || null,
               skills: u.skills || [],
               followersCount: Array.isArray(u.followers) ? u.followers.length : 0,
-            }))
+              }
+            })
+
+          const nextBatchOptions = Array.from(new Set(formattedMembers.map(m => m.batch))).sort()
+          setBatchOptions(prev => Array.from(new Set([...prev, ...nextBatchOptions])).sort())
+          console.debug('[Community] response count', formattedMembers.length)
+          membersCacheRef.current.set(cacheKey, formattedMembers)
           setMembers(formattedMembers)
         }
       } catch (error) {
@@ -59,13 +108,29 @@ function Community() {
       }
     }
     fetchUsers()
-  }, [user])
+  }, [activeFilters, user?.studentId])
 
-  const memberTypes = ['All Members', 'Alumni', 'Student']
-  const departments = ['All Departments', 'CSE', 'EEE', 'ME', 'CE', 'URP', 'Arch', 'PME', 'ECE', 'PHY', 'CHEM', 'MATH', 'HUM']
-  const batches = members.length > 0 
-    ? ['All Batches', ...new Set(members.map(m => m.batch))].sort()
-    : ['All Batches']
+  const memberTypes = [
+    { label: 'All Members', value: '' },
+    { label: 'Alumni', value: 'alumni' },
+    { label: 'Student', value: 'student' },
+  ]
+  const departments = [
+    { label: 'All Departments', value: '' },
+    { label: 'CSE', value: 'cse' },
+    { label: 'EEE', value: 'eee' },
+    { label: 'ME', value: 'me' },
+    { label: 'CE', value: 'ce' },
+    { label: 'URP', value: 'urp' },
+    { label: 'Arch', value: 'arch' },
+    { label: 'PME', value: 'pme' },
+    { label: 'ECE', value: 'ece' },
+    { label: 'PHY', value: 'phy' },
+    { label: 'CHEM', value: 'chem' },
+    { label: 'MATH', value: 'math' },
+    { label: 'HUM', value: 'hum' },
+  ]
+  const batches = ['All Batches', ...batchOptions]
 
   const handleFollow = async (memberId) => {
     if (!isLoggedIn) {
@@ -101,15 +166,7 @@ function Community() {
     navigate(`/member/${memberId}`)
   }
 
-  const filteredMembers = members.filter(member => {
-    const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (member.position || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (member.bio || '').toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesType = memberType === 'All Members' || member.type === memberType
-    const matchesDepartment = department === 'All Departments' || member.department === department
-    const matchesBatch = batchFilter === 'All Batches' || member.batch === batchFilter
-    return matchesSearch && matchesType && matchesDepartment && matchesBatch
-  })
+  const filteredMembers = members
 
   return (
     <div className="py-16 bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -129,13 +186,13 @@ function Community() {
             <input
               type="text"
               placeholder="Search by name, role, or department..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={filters.search}
+              onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
               className="input-professional pl-12"
             />
-            {searchTerm && (
+            {filters.search && (
               <button 
-                onClick={() => setSearchTerm('')}
+                onClick={() => setFilters(prev => ({ ...prev, search: '' }))}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <i className="fas fa-times"></i>
@@ -144,15 +201,21 @@ function Community() {
           </div>
           
           <div className="flex flex-wrap items-center gap-4">
-            <select value={memberType} onChange={(e) => setMemberType(e.target.value)} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
-              {memberTypes.map(type => <option key={type} value={type}>{type}</option>)}
+            <select value={filters.role} onChange={(e) => setFilters(prev => ({ ...prev, role: e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+              {memberTypes.map(type => <option key={type.label} value={type.value}>{type.label}</option>)}
             </select>
-            <select value={department} onChange={(e) => setDepartment(e.target.value)} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
-              {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+            <select value={filters.department} onChange={(e) => setFilters(prev => ({ ...prev, department: e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+              {departments.map(dept => <option key={dept.label} value={dept.value}>{dept.label}</option>)}
             </select>
-            <select value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
-              {batches.map(batch => <option key={batch} value={batch}>{batch === 'All Batches' ? batch : `Batch ${batch}`}</option>)}
+            <select value={filters.batch} onChange={(e) => setFilters(prev => ({ ...prev, batch: e.target.value === 'All Batches' ? '' : e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+              {batches.map(batch => <option key={batch} value={batch === 'All Batches' ? '' : batch}>{batch === 'All Batches' ? batch : `Batch ${batch}`}</option>)}
             </select>
+            <button
+              onClick={() => setFilters(INITIAL_FILTERS)}
+              className="px-4 py-2.5 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Clear All Filters
+            </button>
           </div>
         </div>
 
@@ -237,7 +300,7 @@ function Community() {
                   }`}
                 >
                   <i className={`fas ${isFollowingMember(member.id) ? 'fa-user-check' : 'fa-user-plus'}`}></i>
-                  {isFollowingMember(member.id) ? 'Following' : 'Follow'}
+                  {isFollowingMember(member.id) ? 'Unfollow' : 'Follow'}
                 </button>
               </BaseCard.Footer>
             </BaseCard>
@@ -248,7 +311,7 @@ function Community() {
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <i className="fas fa-users text-4xl mb-4 opacity-50"></i>
             <p>No members found matching your criteria</p>
-            <button onClick={() => { setSearchTerm(''); setMemberType('All Members'); setDepartment('All Departments'); setBatchFilter('All Batches'); }} className="mt-4 text-teal-600 hover:underline">Clear all filters</button>
+            <button onClick={() => setFilters(INITIAL_FILTERS)} className="mt-4 text-teal-600 hover:underline">Clear all filters</button>
           </div>
         )}
         </>

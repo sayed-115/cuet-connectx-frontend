@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -7,8 +7,21 @@ import cuetLogo from '../assets/logos/CUET_Vector_Logo.svg.png'
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef(null)
   const { user, isLoggedIn, logout } = useAuth()
   const { isDark, toggleTheme } = useTheme()
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false)
+      }
+    }
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [dropdownOpen])
 
   const profileImage = user?.profileImage || null
 
@@ -63,7 +76,7 @@ function Navbar() {
             </button>
 
             {isLoggedIn ? (
-              <div className="relative">
+              <div className="relative" ref={dropdownRef}>
                 <button onClick={() => setDropdownOpen(!dropdownOpen)} className="flex items-center gap-2 p-1.5 pr-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200">
                   {profileImage ? (
                     <img src={profileImage} alt="User" className="w-9 h-9 rounded-full border-2 border-teal-500 object-cover" />
@@ -89,9 +102,6 @@ function Navbar() {
                         <i className="fas fa-shield-alt text-indigo-600"></i> Admin Panel
                       </Link>
                     )}
-                    <Link to="/" onClick={() => setDropdownOpen(false)} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
-                      <i className="fas fa-cog text-gray-500"></i> Settings
-                    </Link>
                     <hr className="my-2 dark:border-gray-700" />
                     <button onClick={() => { logout(); setDropdownOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600">
                       <i className="fas fa-sign-out-alt"></i> Logout

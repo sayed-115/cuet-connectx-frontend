@@ -64,16 +64,16 @@ function Footer() {
               Connect With Us
             </h4>
             <div className="flex gap-3 mb-6">
-              <a href="#" className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center hover:bg-teal-600 transition-all duration-200 hover:scale-110" aria-label="Facebook">
+              <a href="https://www.facebook.com/abusayedsk99" className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center hover:bg-teal-600 transition-all duration-200 hover:scale-110" aria-label="Facebook">
                 <i className="fab fa-facebook-f"></i>
               </a>
-              <a href="#" className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center hover:bg-teal-600 transition-all duration-200 hover:scale-110" aria-label="Twitter">
+              <a href="https://x.com/MdAbuSayedsk" className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center hover:bg-teal-600 transition-all duration-200 hover:scale-110" aria-label="Twitter">
                 <i className="fab fa-twitter"></i>
               </a>
-              <a href="#" className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center hover:bg-teal-600 transition-all duration-200 hover:scale-110" aria-label="LinkedIn">
+              <a href="https://www.linkedin.com/in/md-abu-sayed-00751a281/" className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center hover:bg-teal-600 transition-all duration-200 hover:scale-110" aria-label="LinkedIn">
                 <i className="fab fa-linkedin-in"></i>
               </a>
-              <a href="#" className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center hover:bg-teal-600 transition-all duration-200 hover:scale-110" aria-label="Instagram">
+              <a href="https://www.instagram.com/_me_sayed_/" className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center hover:bg-teal-600 transition-all duration-200 hover:scale-110" aria-label="Instagram">
                 <i className="fab fa-instagram"></i>
               </a>
             </div>

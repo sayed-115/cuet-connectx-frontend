@@ -5,7 +5,7 @@ import coverDefault from '../assets/images/cover.png'
 import { usersAPI } from '../services/api'
 
 function Profile() {
-  const { user, isLoggedIn, following, unfollowMember, updateUser } = useAuth()
+  const { user, isLoggedIn, unfollowUser, updateUser, logout } = useAuth()
   const navigate = useNavigate()
 
   // UI states
@@ -30,6 +30,12 @@ function Profile() {
   const [editModal, setEditModal] = useState({ show: false, section: '', data: null })
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+
+  // Change password modal state
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
+  const [changingPassword, setChangingPassword] = useState(false)
+  const [passwordErrors, setPasswordErrors] = useState({})
 
   // Redirect if not logged in
   useEffect(() => {
@@ -190,9 +196,32 @@ function Profile() {
     setEditModal({ show: true, section, data })
   }
 
-  if (!user) return null
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    const errs = {}
+    if (!passwordData.currentPassword) errs.currentPassword = 'Current password is required'
+    if (!passwordData.newPassword) errs.newPassword = 'New password is required'
+    else if (passwordData.newPassword.length < 8) errs.newPassword = 'Password must be at least 8 characters'
+    if (passwordData.newPassword !== passwordData.confirmPassword) errs.confirmPassword = 'Passwords do not match'
+    setPasswordErrors(errs)
+    if (Object.keys(errs).length > 0) return
 
-  // Loading state
+    setChangingPassword(true)
+    try {
+      await usersAPI.changePassword(passwordData.currentPassword, passwordData.newPassword)
+      showToast('Password changed successfully! Redirecting to login...')
+      setShowPasswordModal(false)
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      // Explicitly log out and redirect since the JWT is now invalidated
+      setTimeout(() => { logout(); navigate('/login') }, 1500)
+    } catch (err) {
+      showToast(err.message || 'Failed to change password', 'error')
+    } finally {
+      setChangingPassword(false)
+    }
+  }
+
+  // Loading state — show before any access to `user`
   if (loading) {
     return (
       <div className="bg-gray-50 dark:bg-gray-900 min-h-screen flex items-center justify-center">
@@ -216,6 +245,8 @@ function Profile() {
     )
   }
 
+  if (!user) return null
+
   const pd = profileData || {}
 
   return (
@@ -238,11 +269,11 @@ function Profile() {
       {/* Following Modal */}
       {showFollowingModal && (
         <FollowModal
-          title={`Following (${following.length})`}
-          items={following}
+          title={`Following (${pd.following?.length || 0})`}
+          items={pd.following || []}
           onClose={() => setShowFollowingModal(false)}
           emptyText="You're not following anyone yet"
-          unfollowMember={unfollowMember}
+          unfollowMember={unfollowUser}
         />
       )}
 
@@ -307,7 +338,7 @@ function Profile() {
                 ) : profileImage ? (
                   <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
-                  user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)
+                  (user?.fullName || '?').split(' ').map(n => n[0]).join('').substring(0, 2)
                 )}
               </div>
               <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="absolute inset-0 w-28 h-28 rounded-full bg-black/50 flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 cursor-pointer z-10">
@@ -358,7 +389,7 @@ function Profile() {
             </button>
             <button className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-teal-500 dark:hover:border-teal-500 transition-all duration-200 group" onClick={() => setShowFollowingModal(true)}>
               <i className="fas fa-user-plus text-teal-600 dark:text-teal-400"></i>
-              <span className="font-bold text-gray-800 dark:text-white">{pd.following?.length || following.length}</span>
+              <span className="font-bold text-gray-800 dark:text-white">{pd.following?.length || 0}</span>
               <span className="text-gray-500 dark:text-gray-400 text-sm">Following</span>
             </button>
           </div>
@@ -394,6 +425,22 @@ function Profile() {
                 )}
               </div>
             </SectionCard>
+
+            {/* Change Password */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                  <i className="fas fa-lock text-teal-600 text-base"></i>Security
+                </h3>
+              </div>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Manage your account security settings.</p>
+              <button
+                onClick={() => { setShowPasswordModal(true); setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' }); setPasswordErrors({}) }}
+                className="w-full px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl transition-colors duration-200 flex items-center justify-center gap-2 text-sm font-medium"
+              >
+                <i className="fas fa-key"></i> Change Password
+              </button>
+            </div>
           </div>
 
           {/* Right Column */}
@@ -452,6 +499,44 @@ function Profile() {
           </div>
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowPasswordModal(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <i className="fas fa-key text-teal-600"></i> Change Password
+              </h2>
+              <button onClick={() => setShowPasswordModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><i className="fas fa-times text-xl"></i></button>
+            </div>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Password</label>
+                <input type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} className="input-professional" placeholder="Enter current password" />
+                {passwordErrors.currentPassword && <p className="text-red-500 text-xs mt-1">{passwordErrors.currentPassword}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Password</label>
+                <input type="password" value={passwordData.newPassword} onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} className="input-professional" placeholder="Enter new password" />
+                {passwordErrors.newPassword && <p className="text-red-500 text-xs mt-1">{passwordErrors.newPassword}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm New Password</label>
+                <input type="password" value={passwordData.confirmPassword} onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} className="input-professional" placeholder="Confirm new password" />
+                {passwordErrors.confirmPassword && <p className="text-red-500 text-xs mt-1">{passwordErrors.confirmPassword}</p>}
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowPasswordModal(false)} className="flex-1 btn-secondary" disabled={changingPassword}>Cancel</button>
+                <button type="submit" className="flex-1 btn-primary flex items-center justify-center gap-2" disabled={changingPassword}>
+                  {changingPassword && <i className="fas fa-spinner fa-spin"></i>}
+                  {changingPassword ? 'Changing...' : 'Change Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editModal.show && (
@@ -521,7 +606,7 @@ function FollowModal({ title, items, onClose, emptyText, unfollowMember, isFollo
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><i className="fas fa-times text-xl"></i></button>
         </div>
         <div className="overflow-y-auto max-h-96 p-4">
-          {items.length === 0 ? (
+          {(!items || items.length === 0) ? (
             <div className="text-center py-8">
               <i className="fas fa-user-friends text-4xl text-gray-300 dark:text-gray-600 mb-3"></i>
               <p className="text-gray-500 dark:text-gray-400">{emptyText}</p>

@@ -1,5 +1,42 @@
 // API Service for CUET-ConnectX
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const RAILWAY_API_URL = 'https://cuet-connectx-api-production.up.railway.app/api';
+let configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+const isLegacyRenderApi = /cuet-connectx-backend.*\.onrender\.com\/api/i.test(configuredApiUrl);
+
+if (import.meta.env.PROD && isLegacyRenderApi) {
+  console.warn(`[API] Legacy Render API detected (${configuredApiUrl}). Switching to Railway API: ${RAILWAY_API_URL}`);
+  configuredApiUrl = RAILWAY_API_URL;
+}
+
+const fallbackApiUrl = import.meta.env.DEV
+  ? 'http://localhost:5000/api'
+  : RAILWAY_API_URL;
+const API_URL = configuredApiUrl || fallbackApiUrl;
+
+function normalizeFilterValue(value) {
+  if (typeof value === 'string') return value.toLowerCase().trim();
+  if (typeof value === 'number') return String(value);
+  return value;
+}
+
+function cleanQueryParams(params = {}) {
+  const cleaned = {};
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    const normalized = normalizeFilterValue(value);
+    if (normalized === '') return;
+    cleaned[key] = normalized;
+  });
+  return cleaned;
+}
+
+if (!configuredApiUrl) {
+  console.warn(`[API] VITE_API_URL is not set. Using fallback API URL: ${API_URL}`);
+}
+
+if (import.meta.env.PROD && /localhost/i.test(API_URL)) {
+  console.error('[API] Production build is pointing to localhost. Set VITE_API_URL to your deployed backend URL.');
+}
 
 // Custom error class for API errors
 export class ApiError extends Error {
@@ -23,6 +60,11 @@ const handleLogout = () => {
 // Helper function for API calls
 async function apiCall(endpoint, options = {}) {
   const token = localStorage.getItem('token');
+
+  const method = options.method || 'GET';
+  if (import.meta.env.DEV) {
+    console.debug(`[API] ${method} ${endpoint}`);
+  }
   
   const config = {
     headers: {
@@ -33,7 +75,15 @@ async function apiCall(endpoint, options = {}) {
     ...options,
   };
 
-  const response = await fetch(`${API_URL}${endpoint}`, config);
+  let response;
+  try {
+    response = await fetch(`${API_URL}${endpoint}`, config);
+  } catch (err) {
+    throw new ApiError(
+      'Unable to connect to the server. Please check your internet connection and try again.',
+      0
+    );
+  }
   
   // Handle empty responses
   let data = {};
@@ -42,11 +92,20 @@ async function apiCall(endpoint, options = {}) {
     data = await response.json();
   }
 
+  if (import.meta.env.DEV) {
+    console.debug('[API] Response', {
+      method,
+      endpoint,
+      status: response.status,
+      ok: response.ok,
+    });
+  }
+
   if (!response.ok) {
     // Handle 401 Unauthorized - auto logout
     if (response.status === 401) {
       const isExpired = data.expired === true;
-      if (isExpired || data.message?.includes('expired')) {
+      if (isExpired || data.message?.includes('expired') || data.message?.includes('Password recently changed')) {
         handleLogout();
       }
       throw new ApiError(data.message || 'Session expired. Please login again.', 401, isExpired);
@@ -54,7 +113,10 @@ async function apiCall(endpoint, options = {}) {
     
     // Handle 403 Forbidden
     if (response.status === 403) {
-      throw new ApiError(data.message || 'You are not authorized to perform this action.', 403);
+      const err = new ApiError(data.message || 'You are not authorized to perform this action.', 403);
+      if (data.needsVerification) err.needsVerification = true;
+      if (data.email) err.email = data.email;
+      throw err;
     }
     
     throw new ApiError(data.message || 'Something went wrong', response.status);
@@ -76,15 +138,40 @@ export const authAPI = {
   }),
 
   getMe: () => apiCall('/auth/me'),
+
+  verifyEmail: (token) => apiCall(`/auth/verify-email?token=${encodeURIComponent(token)}`),
+
+  resendVerification: (email) => apiCall('/auth/resend-verification', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  }),
+
+  forgotPassword: (data) => apiCall('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+
+  resetPassword: (token, newPassword) => apiCall('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ token, newPassword }),
+  }),
 };
 
 // Users API
 export const usersAPI = {
   getAll: (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
+    const cleaned = cleanQueryParams(params);
+    if (import.meta.env.DEV) {
+      console.debug('[usersAPI] params', cleaned);
+    }
+    const queryString = new URLSearchParams(cleaned).toString();
     return apiCall(`/users${queryString ? '?' + queryString : ''}`);
   },
   getById: (id) => apiCall(`/users/${id}`),
+  changePassword: (currentPassword, newPassword) => apiCall('/users/change-password', {
+    method: 'PUT',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  }),
   getProfile: () => apiCall('/users/profile'),
   updateProfile: (data) => apiCall('/users/profile', {
     method: 'PUT',
@@ -92,11 +179,16 @@ export const usersAPI = {
   }),
   uploadImage: async (formData) => {
     const token = localStorage.getItem('token');
-    const response = await fetch(`${API_URL}/users/profile/image`, {
-      method: 'PUT',
-      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
-      body: formData,
-    });
+    let response;
+    try {
+      response = await fetch(`${API_URL}/users/profile/image`, {
+        method: 'PUT',
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+        body: formData,
+      });
+    } catch (err) {
+      throw new ApiError('Unable to connect to the server. Please try again.', 0);
+    }
     const data = await response.json();
     if (!response.ok) throw new ApiError(data.message || 'Upload failed', response.status);
     return data;
@@ -115,7 +207,14 @@ export const usersAPI = {
 
 // Jobs API
 export const jobsAPI = {
-  getAll: () => apiCall('/jobs'),
+  getAll: (params = {}) => {
+    const cleaned = cleanQueryParams(params);
+    if (import.meta.env.DEV) {
+      console.debug('[jobsAPI] params', cleaned);
+    }
+    const queryString = new URLSearchParams(cleaned).toString();
+    return apiCall(`/jobs${queryString ? '?' + queryString : ''}`);
+  },
   getById: (id) => apiCall(`/jobs/${id}`),
   create: (data) => apiCall('/jobs', {
     method: 'POST',
@@ -133,7 +232,11 @@ export const jobsAPI = {
 // Scholarships API
 export const scholarshipsAPI = {
   getAll: (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
+    const cleaned = cleanQueryParams(params);
+    if (import.meta.env.DEV) {
+      console.debug('[scholarshipsAPI] params', cleaned);
+    }
+    const queryString = new URLSearchParams(cleaned).toString();
     return apiCall(`/scholarships${queryString ? '?' + queryString : ''}`);
   },
   getById: (id) => apiCall(`/scholarships/${id}`),
@@ -186,11 +289,16 @@ async function uploadFile(endpoint, file, fieldName = 'image') {
   const token = localStorage.getItem('token');
   const formData = new FormData();
   formData.append(fieldName, file);
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    method: 'POST',
-    headers: { ...(token && { Authorization: `Bearer ${token}` }) },
-    body: formData,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+      body: formData,
+    });
+  } catch (err) {
+    throw new ApiError('Unable to connect to the server. Please try again.', 0);
+  }
   const data = await response.json();
   if (!response.ok) throw new ApiError(data.message || 'Upload failed', response.status);
   return data;

@@ -19,7 +19,6 @@ export function AuthProvider({ children }) {
             setIsLoggedIn(true)
           }
         } catch (error) {
-          console.log('Token expired or invalid')
           localStorage.removeItem('token')
         }
       }
@@ -30,8 +29,7 @@ export function AuthProvider({ children }) {
 
   // Listen for forced logout events (e.g., token expired)
   useEffect(() => {
-    const handleForcedLogout = (event) => {
-      console.log('Session expired, logging out...', event.detail?.reason)
+    const handleForcedLogout = () => {
       setUser(null)
       setIsLoggedIn(false)
     }
@@ -54,9 +52,16 @@ export function AuthProvider({ children }) {
       })
 
       if (response.success) {
-        localStorage.setItem('token', response.token)
-        setUser(response.user)
-        setIsLoggedIn(true)
+        // Email verification required — do not auto-login
+        if (response.needsVerification) {
+          return { success: true, needsVerification: true, message: response.message }
+        }
+        // Fallback: if server returns token (e.g., admin-created accounts)
+        if (response.token) {
+          localStorage.setItem('token', response.token)
+          setUser(response.user)
+          setIsLoggedIn(true)
+        }
         return { success: true }
       }
       return { success: false, error: 'Registration failed' }
@@ -82,6 +87,10 @@ export function AuthProvider({ children }) {
       }
       return { success: false, error: 'Login failed' }
     } catch (error) {
+      // Propagate needsVerification flag from 403 response
+      if (error.needsVerification || error.status === 403) {
+        return { success: false, error: error.message, needsVerification: true, email: error.email }
+      }
       return { success: false, error: error.message }
     }
   }
