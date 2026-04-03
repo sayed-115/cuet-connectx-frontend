@@ -1,17 +1,10 @@
 // API Service for CUET-ConnectX
 const RENDER_API_URL = 'https://cuet-connectx-backend.onrender.com/api';
-const LEGACY_RENDER_API_PATTERN = /cuet-connectx-backend-1\.onrender\.com\/api/i;
-let configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
-
-if (import.meta.env.PROD && LEGACY_RENDER_API_PATTERN.test(configuredApiUrl)) {
-  console.warn(`[API] Legacy backend URL detected (${configuredApiUrl}). Switching to ${RENDER_API_URL}`);
-  configuredApiUrl = RENDER_API_URL;
-}
-
-const fallbackApiUrl = import.meta.env.DEV
-  ? 'http://localhost:5000/api'
-  : RENDER_API_URL;
-const API_URL = configuredApiUrl || fallbackApiUrl;
+const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+const apiUrlCandidate = configuredApiUrl || RENDER_API_URL;
+const API_URL = import.meta.env.PROD && apiUrlCandidate !== RENDER_API_URL
+  ? RENDER_API_URL
+  : apiUrlCandidate;
 
 function normalizeFilterValue(value) {
   if (typeof value === 'string') return value.toLowerCase().trim();
@@ -32,6 +25,10 @@ function cleanQueryParams(params = {}) {
 
 if (!configuredApiUrl) {
   console.warn(`[API] VITE_API_URL is not set. Using fallback API URL: ${API_URL}`);
+}
+
+if (import.meta.env.PROD && configuredApiUrl && configuredApiUrl !== RENDER_API_URL) {
+  console.warn(`[API] Unsupported production VITE_API_URL (${configuredApiUrl}). Using ${RENDER_API_URL}`);
 }
 
 if (import.meta.env.PROD && /localhost/i.test(API_URL)) {
