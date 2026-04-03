@@ -319,10 +319,10 @@ function Community() {
                 </button>
                 <button 
                   onClick={() => handleFollow(member.id)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                  className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
                     isFollowingMember(member.id)
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-teal-600 text-white hover:bg-teal-700'
+                      ? 'border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:border-rose-300 dark:hover:border-rose-700 hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-600 dark:hover:text-rose-300'
+                      : 'border-transparent bg-teal-600 text-white hover:bg-teal-700'
                   }`}
                 >
                   <i className={`fas ${isFollowingMember(member.id) ? 'fa-user-check' : 'fa-user-plus'}`}></i>
