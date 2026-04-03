@@ -243,6 +243,7 @@ function Scholarships() {
             role: postRole,
             status: postStatus,
             ownerId,
+            canEditOwn: Boolean(currentUserId) && ownerId === currentUserId,
             canManage: Boolean(currentUserId) && (String(user?.role || '').toLowerCase() === 'admin' || ownerId === currentUserId),
             postedBy: s.postedBy
               ? {
@@ -359,7 +360,7 @@ function Scholarships() {
   }
 
   const openEditScholarship = (scholarship) => {
-    if (!scholarship?.canManage) return
+    if (!scholarship?.canEditOwn) return
 
     const parsedDeadline = scholarship.deadline && scholarship.deadline !== 'Open' ? new Date(scholarship.deadline) : null
     const safeDeadline = parsedDeadline && !Number.isNaN(parsedDeadline.getTime())
@@ -638,11 +639,11 @@ function Scholarships() {
                     Posted by <span className="font-medium text-gray-700 dark:text-gray-300">{showDetailModal.postedBy.name}</span>
                   </p>
                   <div className="flex flex-wrap gap-3">
+                    {showDetailModal.canEditOwn && (
+                      <button onClick={() => openEditScholarship(showDetailModal)} className="btn-secondary">Edit</button>
+                    )}
                     {showDetailModal.canManage && (
-                      <>
-                        <button onClick={() => openEditScholarship(showDetailModal)} className="btn-secondary">Edit</button>
-                        <button onClick={() => handleDeleteScholarship(showDetailModal)} className="px-4 py-2.5 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-900/30">Delete</button>
-                      </>
+                      <button onClick={() => handleDeleteScholarship(showDetailModal)} className="px-4 py-2.5 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-900/30">Delete</button>
                     )}
                     <button onClick={() => setShowDetailModal(null)} className="flex-1 btn-secondary">Close</button>
                     <a 

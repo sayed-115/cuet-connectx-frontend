@@ -161,6 +161,7 @@ function Jobs() {
               role: postRole,
               status: postStatus,
               ownerId,
+              canEditOwn: Boolean(currentUserId) && ownerId === currentUserId,
               canManage: Boolean(currentUserId) && (String(user?.role || '').toLowerCase() === 'admin' || ownerId === currentUserId),
               postedByAlumni: posterTypeRaw === 'alumni',
               postedBy: job.postedBy ? {
@@ -296,7 +297,7 @@ function Jobs() {
   }
 
   const openEditJob = (job) => {
-    if (!job?.canManage) return
+    if (!job?.canEditOwn) return
 
     const parsedDeadline = job.deadline && job.deadline !== 'Open' ? new Date(job.deadline) : null
     const safeDeadline = parsedDeadline && !Number.isNaN(parsedDeadline.getTime())
@@ -586,11 +587,11 @@ function Jobs() {
 
               {/* Action Buttons */}
               <div className="flex flex-wrap gap-3">
+                {showDetailModal.canEditOwn && (
+                  <button onClick={() => openEditJob(showDetailModal)} className="btn-secondary">Edit</button>
+                )}
                 {showDetailModal.canManage && (
-                  <>
-                    <button onClick={() => openEditJob(showDetailModal)} className="btn-secondary">Edit</button>
-                    <button onClick={() => handleDeleteJob(showDetailModal)} className="px-4 py-2.5 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-900/30">Delete</button>
-                  </>
+                  <button onClick={() => handleDeleteJob(showDetailModal)} className="px-4 py-2.5 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-900/30">Delete</button>
                 )}
                 <button onClick={() => setShowDetailModal(null)} className="flex-1 btn-secondary">Close</button>
                 <a 
