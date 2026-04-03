@@ -415,7 +415,7 @@ function Jobs() {
                 <ul className="space-y-2">
                   {(showDetailModal.requirements && Array.isArray(showDetailModal.requirements) ? showDetailModal.requirements : [showDetailModal.description || 'No requirements specified']).map((req, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <span className="text-teal-500 mt-1">ΓÇó</span>
+                      <span className="text-teal-500 mt-1">•</span>
                       {req}
                     </li>
                   ))}
@@ -430,7 +430,7 @@ function Jobs() {
                 <ul className="space-y-2">
                   {(showDetailModal.responsibilities && Array.isArray(showDetailModal.responsibilities) ? showDetailModal.responsibilities : ['See job description']).map((resp, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <span className="text-teal-500 mt-1">ΓÇó</span>
+                      <span className="text-teal-500 mt-1">•</span>
                       {resp}
                     </li>
                   ))}

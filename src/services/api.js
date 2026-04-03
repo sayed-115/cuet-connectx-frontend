@@ -240,11 +240,7 @@ export const scholarshipsAPI = {
 // Posts API
 export const postsAPI = {
   getAll: (params = {}) => {
-    const cleaned = cleanQueryParams(params);
-    if (import.meta.env.DEV) {
-      console.debug('[postsAPI] params', cleaned);
-    }
-    const queryString = new URLSearchParams(cleaned).toString();
+    const queryString = new URLSearchParams(params).toString();
     return apiCall(`/posts${queryString ? '?' + queryString : ''}`);
   },
   getById: (id) => apiCall(`/posts/${id}`),
@@ -255,6 +251,17 @@ export const postsAPI = {
   update: (id, data) => apiCall(`/posts/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
+  }),
+  uploadImage: (file) => uploadFile('/posts/upload-image', file),
+  like: (id) => apiCall(`/posts/${id}/like`, {
+    method: 'POST',
+  }),
+  comment: (id, text) => apiCall(`/posts/${id}/comment`, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  }),
+  deleteComment: (postId, commentId) => apiCall(`/posts/${postId}/comment/${commentId}`, {
+    method: 'DELETE',
   }),
   delete: (id) => apiCall(`/posts/${id}`, {
     method: 'DELETE',
