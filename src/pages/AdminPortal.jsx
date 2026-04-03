@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { adminAPI, usersAPI } from '../services/api';
+import { CDN_IMAGES } from '../config/cdnImages';
 import Pagination from '../components/admin/Pagination';
 import ConfirmModal from '../components/admin/ConfirmModal';
 import Toast from '../components/admin/Toast';
@@ -139,7 +140,7 @@ function AdminPortal() {
   const adminInitials = user?.fullName
     ? user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
     : 'AD';
-  const profileCoverImage = profileData?.coverImage || user?.coverImage || '';
+  const profileCoverImage = profileData?.coverImage || user?.coverImage || CDN_IMAGES.coverDefault;
 
   const formatRoleLabel = (roleValue) =>
     String(roleValue || '')
@@ -639,7 +640,15 @@ function AdminPortal() {
                       <div className="relative h-32 overflow-hidden rounded-t-xl">
                         {profileCoverImage ? (
                           <>
-                            <img src={profileCoverImage} alt="" className="h-full w-full object-cover" />
+                            <img
+                              src={profileCoverImage}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              onError={(event) => {
+                                event.currentTarget.onerror = null;
+                                event.currentTarget.src = CDN_IMAGES.coverDefault;
+                              }}
+                            />
                             <div className="absolute inset-0 bg-black/15" />
                           </>
                         ) : (
