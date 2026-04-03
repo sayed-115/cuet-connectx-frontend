@@ -87,6 +87,7 @@ function Signup() {
   const [registrationSuccess, setRegistrationSuccess] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [resendMessage, setResendMessage] = useState('')
+  const [resendMessageType, setResendMessageType] = useState('success')
   const { register, isLoggedIn } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -149,6 +150,11 @@ function Signup() {
       if (result.success) {
         if (result.needsVerification) {
           setRegistrationSuccess(true)
+          if (result.message) {
+            const failedToSend = /could not send|failed/i.test(result.message)
+            setResendMessage(result.message)
+            setResendMessageType(failedToSend ? 'error' : 'success')
+          }
         } else {
           navigate(redirectPath, { replace: true })
         }
@@ -164,11 +170,14 @@ function Signup() {
   const handleResendVerification = async () => {
     setResendLoading(true)
     setResendMessage('')
+    setResendMessageType('success')
     try {
       const response = await authAPI.resendVerification(formData.email)
       setResendMessage(response.message || 'Verification email sent!')
+      setResendMessageType('success')
     } catch (err) {
       setResendMessage(err.message || 'Failed to resend. Try again later.')
+      setResendMessageType('error')
     }
     setResendLoading(false)
   }
@@ -191,7 +200,11 @@ function Signup() {
           </p>
 
           {resendMessage && (
-            <div className="bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 px-4 py-3 rounded-xl text-sm mb-4">
+            <div className={`px-4 py-3 rounded-xl text-sm mb-4 ${
+              resendMessageType === 'error'
+                ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                : 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400'
+            }`}>
               {resendMessage}
             </div>
           )}
