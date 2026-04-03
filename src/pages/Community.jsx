@@ -18,6 +18,7 @@ function Community() {
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [members, setMembers] = useState([])
+  const [departmentOptions, setDepartmentOptions] = useState([])
   const [batchOptions, setBatchOptions] = useState([])
   const [loading, setLoading] = useState(true)
   const membersCacheRef = useRef(new Map())
@@ -101,7 +102,16 @@ function Community() {
             })
 
           const nextBatchOptions = Array.from(new Set(formattedMembers.map(m => m.batch))).sort()
+          const nextDepartmentOptions = Array.from(
+            new Set(
+              formattedMembers
+                .map(m => String(m.department || '').trim())
+                .filter(Boolean)
+            )
+          ).sort()
+
           setBatchOptions(prev => Array.from(new Set([...prev, ...nextBatchOptions])).sort())
+          setDepartmentOptions(prev => Array.from(new Set([...prev, ...nextDepartmentOptions])).sort())
           console.debug('[Community] response count', formattedMembers.length)
           membersCacheRef.current.set(cacheKey, formattedMembers)
           setMembers(formattedMembers)
@@ -120,21 +130,7 @@ function Community() {
     { label: 'Alumni', value: 'alumni' },
     { label: 'Student', value: 'student' },
   ]
-  const departments = [
-    { label: 'All Departments', value: '' },
-    { label: 'CSE', value: 'cse' },
-    { label: 'EEE', value: 'eee' },
-    { label: 'ME', value: 'me' },
-    { label: 'CE', value: 'ce' },
-    { label: 'URP', value: 'urp' },
-    { label: 'Arch', value: 'arch' },
-    { label: 'PME', value: 'pme' },
-    { label: 'ECE', value: 'ece' },
-    { label: 'PHY', value: 'phy' },
-    { label: 'CHEM', value: 'chem' },
-    { label: 'MATH', value: 'math' },
-    { label: 'HUM', value: 'hum' },
-  ]
+  const departments = ['All Departments', ...departmentOptions]
   const batches = ['All Batches', ...batchOptions]
 
   const handleFollow = async (memberId) => {
@@ -209,8 +205,8 @@ function Community() {
             <select value={filters.role} onChange={(e) => setFilters(prev => ({ ...prev, role: e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
               {memberTypes.map(type => <option key={type.label} value={type.value}>{type.label}</option>)}
             </select>
-            <select value={filters.department} onChange={(e) => setFilters(prev => ({ ...prev, department: e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
-              {departments.map(dept => <option key={dept.label} value={dept.value}>{dept.label}</option>)}
+            <select value={filters.department} onChange={(e) => setFilters(prev => ({ ...prev, department: e.target.value === 'All Departments' ? '' : e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+              {departments.map(dept => <option key={dept} value={dept === 'All Departments' ? '' : dept}>{dept}</option>)}
             </select>
             <select value={filters.batch} onChange={(e) => setFilters(prev => ({ ...prev, batch: e.target.value === 'All Batches' ? '' : e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
               {batches.map(batch => <option key={batch} value={batch === 'All Batches' ? '' : batch}>{batch === 'All Batches' ? batch : `Batch ${batch}`}</option>)}
