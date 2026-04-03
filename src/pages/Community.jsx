@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { usersAPI } from '../services/api'
 import BaseCard from '../components/BaseCard'
 
@@ -23,6 +23,11 @@ function Community() {
   const membersCacheRef = useRef(new Map())
   const { isLoggedIn, user, isFollowingMember, followUser, unfollowUser } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  const navigateToLogin = () => {
+    navigate('/login', { state: { from: location } })
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -134,7 +139,7 @@ function Community() {
 
   const handleFollow = async (memberId) => {
     if (!isLoggedIn) {
-      navigate('/login')
+      navigateToLogin()
       return
     }
     try {
@@ -160,7 +165,7 @@ function Community() {
 
   const handleViewProfile = (memberId) => {
     if (!isLoggedIn) {
-      navigate('/login')
+      navigateToLogin()
       return
     }
     navigate(`/member/${memberId}`)

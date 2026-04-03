@@ -6,16 +6,12 @@ import { usersAPI } from '../services/api'
 function MemberProfile() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { isLoggedIn, user, isFollowingMember, followUser, unfollowUser } = useAuth()
+  const { user, isFollowingMember, followUser, unfollowUser } = useAuth()
   const [showShareToast, setShowShareToast] = useState(false)
   const [member, setMember] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!isLoggedIn) {
-      navigate('/login')
-      return
-    }
     const fetchMember = async () => {
       try {
         setLoading(true)
@@ -30,7 +26,7 @@ function MemberProfile() {
       }
     }
     fetchMember()
-  }, [id, isLoggedIn, navigate])
+  }, [id])
 
   const isFollowing = isFollowingMember(id)
 

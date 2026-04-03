@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { jobsAPI } from '../services/api'
 import BaseCard from '../components/BaseCard'
 
@@ -27,6 +27,11 @@ function Jobs() {
   const jobsCacheRef = useRef(new Map())
   const { isLoggedIn } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  const navigateToLogin = () => {
+    navigate('/login', { state: { from: location } })
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -143,7 +148,7 @@ function Jobs() {
 
   const handleApply = (jobId) => {
     if (!isLoggedIn) {
-      navigate('/login')
+      navigateToLogin()
       return
     }
     setAppliedJobs([...appliedJobs, jobId])
@@ -151,7 +156,7 @@ function Jobs() {
 
   const handleSaveJob = (jobId) => {
     if (!isLoggedIn) {
-      navigate('/login')
+      navigateToLogin()
       return
     }
     if (savedJobs.includes(jobId)) {
@@ -164,7 +169,7 @@ function Jobs() {
   const handlePostJob = (e) => {
     e.preventDefault()
     if (!isLoggedIn) {
-      navigate('/login')
+      navigateToLogin()
       return
     }
     const job = {
@@ -202,7 +207,7 @@ function Jobs() {
             {jobs.map(job => job.jobImage && <img key={job.id} src={job.jobImage} alt="Job" className="h-12 w-12 rounded object-cover mr-2 inline-block" />)}
           </div>
           <button 
-            onClick={() => isLoggedIn ? setShowPostModal(true) : navigate('/login')}
+            onClick={() => isLoggedIn ? setShowPostModal(true) : navigateToLogin()}
             className="mt-4 md:mt-0 btn-primary flex items-center gap-2"
           >
             <i className="fas fa-plus"></i> Post a Job

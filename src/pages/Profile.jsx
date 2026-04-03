@@ -5,7 +5,7 @@ import coverDefault from '../assets/images/cover.png'
 import { usersAPI } from '../services/api'
 
 function Profile() {
-  const { user, isLoggedIn, unfollowUser, updateUser, logout } = useAuth()
+  const { user, unfollowUser, updateUser, logout } = useAuth()
   const navigate = useNavigate()
 
   // UI states
@@ -37,11 +37,6 @@ function Profile() {
   const [changingPassword, setChangingPassword] = useState(false)
   const [passwordErrors, setPasswordErrors] = useState({})
 
-  // Redirect if not logged in
-  useEffect(() => {
-    if (!isLoggedIn) navigate('/login')
-  }, [isLoggedIn, navigate])
-
   // Fetch profile data from backend
   const fetchProfile = useCallback(async () => {
     try {
@@ -61,8 +56,8 @@ function Profile() {
   }, [])
 
   useEffect(() => {
-    if (isLoggedIn) fetchProfile()
-  }, [isLoggedIn, fetchProfile])
+    fetchProfile()
+  }, [fetchProfile])
 
   // Show toast helper
   const showToast = (message, type = 'success') => {
