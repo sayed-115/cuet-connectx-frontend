@@ -123,6 +123,9 @@ function Scholarships() {
   const [fundingTypeOptions, setFundingTypeOptions] = useState([])
   const [showPostModal, setShowPostModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
+  const [editingScholarshipId, setEditingScholarshipId] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
   const [newScholarship, setNewScholarship] = useState({ 
     name: '', 
     level: '', 
@@ -142,6 +145,21 @@ function Scholarships() {
   const { isLoggedIn, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+
+  const currentUserId = String(user?._id || user?.id || '')
+
+  const getPostRoleLabel = (role) => (String(role || '').toLowerCase() === 'admin' ? 'Admin Post' : 'User Post')
+
+  const getStatusMeta = (status) => {
+    const normalized = String(status || 'approved').toLowerCase()
+    if (normalized === 'pending') {
+      return { label: 'Pending', className: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' }
+    }
+    if (normalized === 'rejected') {
+      return { label: 'Rejected', className: 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300' }
+    }
+    return { label: 'Approved', className: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300' }
+  }
 
   const navigateToLogin = () => {
     navigate('/login', { state: { from: location } })
@@ -182,10 +200,30 @@ function Scholarships() {
       try {
         setLoading(true)
         console.debug('[Scholarships] API request params', activeFilters)
-        const response = await scholarshipsAPI.getAll(activeFilters)
-        if (response.success) {
-          const formattedScholarships = response.scholarships.map((s) => {
+        const [publicResponse, ownResponse] = await Promise.all([
+          scholarshipsAPI.getAll(activeFilters),
+          isLoggedIn ? scholarshipsAPI.getMine(activeFilters) : Promise.resolve({ success: true, scholarships: [] }),
+        ])
+
+        if (publicResponse.success) {
+          const mergedScholarships = [...(publicResponse.scholarships || [])]
+          const knownIds = new Set(mergedScholarships.map((entry) => String(entry._id)))
+
+          if (ownResponse?.success) {
+            (ownResponse.scholarships || []).forEach((entry) => {
+              const scholarshipId = String(entry._id)
+              if (!knownIds.has(scholarshipId)) {
+                mergedScholarships.push(entry)
+                knownIds.add(scholarshipId)
+              }
+            })
+          }
+
+          const formattedScholarships = mergedScholarships.map((s) => {
             const detectedLevels = getScholarshipLevels(s)
+            const postRole = String(s.role || 'user').toLowerCase()
+            const postStatus = String(s.status || 'approved').toLowerCase()
+            const ownerId = String(s.createdBy || s.postedBy?._id || '')
 
             return {
             levels: detectedLevels,
@@ -202,6 +240,10 @@ function Scholarships() {
             benefits: s.amount || 'Full funding available',
             description: s.description || s.title,
             organization: s.organization,
+            role: postRole,
+            status: postStatus,
+            ownerId,
+            canManage: Boolean(currentUserId) && (String(user?.role || '').toLowerCase() === 'admin' || ownerId === currentUserId),
             postedBy: s.postedBy
               ? {
                 name: s.postedBy.fullName,
@@ -229,7 +271,7 @@ function Scholarships() {
       }
     }
     fetchScholarships()
-  }, [activeFilters])
+  }, [activeFilters, currentUserId, isLoggedIn, refreshKey, user?.role])
 
   const levels = [{ label: 'All Levels', value: '' }, ...levelOptions]
   const locations = [{ label: 'All Locations', value: '' }, ...locationOptions]
@@ -247,32 +289,117 @@ function Scholarships() {
     }
   }
 
-  const handlePostScholarship = (e) => {
+  const resetScholarshipForm = () => {
+    setNewScholarship({
+      name: '',
+      level: '',
+      location: '',
+      fundingType: '',
+      duration: '',
+      fundingDetails: '',
+      deadline: '',
+      link: '',
+      eligibility: '',
+      benefits: '',
+      description: ''
+    })
+    setEditingScholarshipId(null)
+  }
+
+  const handlePostScholarship = async (e) => {
     e.preventDefault()
     if (!isLoggedIn) {
       navigateToLogin()
       return
     }
-    const scholarship = {
-      id: scholarships.length + 1,
-      ...newScholarship,
-      postedBy: { name: user?.fullName || 'You', type: 'Alumni' }
+
+    const payload = {
+      scholarshipName: newScholarship.name,
+      title: newScholarship.name,
+      level: newScholarship.level,
+      location: newScholarship.location,
+      fundingType: newScholarship.fundingType,
+      duration: newScholarship.duration,
+      fundingDetails: newScholarship.fundingDetails,
+      amount: newScholarship.fundingDetails,
+      deadline: newScholarship.deadline,
+      scholarshipLink: newScholarship.link,
+      link: newScholarship.link,
+      eligibilityCriteria: newScholarship.eligibility,
+      eligibility: newScholarship.eligibility,
+      benefits: newScholarship.benefits,
+      description: newScholarship.description,
+      organization: newScholarship.organization || 'CUET Community',
     }
-    setScholarships([scholarship, ...scholarships])
-    setNewScholarship({ 
-      name: '', 
-      level: '', 
-      location: '', 
-      fundingType: '', 
-      duration: '',
-      fundingDetails: '', 
-      deadline: '', 
-      link: '',
-      eligibility: '',
-      benefits: '',
-      description: '' 
+
+    try {
+      setSubmitting(true)
+
+      const response = editingScholarshipId
+        ? await scholarshipsAPI.update(editingScholarshipId, payload)
+        : await scholarshipsAPI.create(payload)
+
+      scholarshipsCacheRef.current.clear()
+      setRefreshKey(prev => prev + 1)
+      setShowPostModal(false)
+      setShowDetailModal(null)
+      resetScholarshipForm()
+
+      const updatedStatus = String(response?.scholarship?.status || 'approved').toLowerCase()
+      if (!editingScholarshipId && updatedStatus === 'pending') {
+        window.alert('Scholarship submitted successfully. It is pending admin approval.')
+      } else if (editingScholarshipId && String(user?.role || '').toLowerCase() !== 'admin') {
+        window.alert('Scholarship updated successfully and sent for re-approval.')
+      }
+    } catch (error) {
+      window.alert(error.message || 'Failed to save scholarship. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const openEditScholarship = (scholarship) => {
+    if (!scholarship?.canManage) return
+
+    const parsedDeadline = scholarship.deadline && scholarship.deadline !== 'Open' ? new Date(scholarship.deadline) : null
+    const safeDeadline = parsedDeadline && !Number.isNaN(parsedDeadline.getTime())
+      ? parsedDeadline.toISOString().split('T')[0]
+      : ''
+
+    setEditingScholarshipId(scholarship.id)
+    setNewScholarship({
+      name: scholarship.name || '',
+      level: scholarship.level || '',
+      location: scholarship.location || '',
+      fundingType: scholarship.fundingType || '',
+      duration: scholarship.duration || '',
+      fundingDetails: scholarship.fundingDetails || '',
+      deadline: safeDeadline,
+      link: scholarship.link || '',
+      eligibility: scholarship.eligibility || '',
+      benefits: scholarship.benefits || '',
+      description: scholarship.description || '',
+      organization: scholarship.organization || ''
     })
-    setShowPostModal(false)
+    setShowDetailModal(null)
+    setShowPostModal(true)
+  }
+
+  const handleDeleteScholarship = async (scholarship) => {
+    if (!scholarship?.canManage) return
+
+    const confirmed = window.confirm(`Delete scholarship "${scholarship.name}"? This cannot be undone.`)
+    if (!confirmed) return
+
+    try {
+      await scholarshipsAPI.delete(scholarship.id)
+      scholarshipsCacheRef.current.clear()
+      setRefreshKey(prev => prev + 1)
+      setShowDetailModal(null)
+      window.alert('Scholarship deleted successfully.')
+    } catch (error) {
+      window.alert(error.message || 'Failed to delete scholarship.')
+    }
   }
 
   const filteredScholarships = scholarships
@@ -287,7 +414,14 @@ function Scholarships() {
             {scholarships.map(s => s.scholarshipImage && <img key={s.id} src={s.scholarshipImage} alt="Scholarship" className="h-12 w-12 rounded object-cover mr-2 inline-block" />)}
           </div>
           <button 
-            onClick={() => isLoggedIn ? setShowPostModal(true) : navigateToLogin()}
+            onClick={() => {
+              if (!isLoggedIn) {
+                navigateToLogin()
+                return
+              }
+              resetScholarshipForm()
+              setShowPostModal(true)
+            }}
             className="mt-4 md:mt-0 btn-primary flex items-center gap-2"
           >
             <i className="fas fa-plus"></i> Post a Scholarship
@@ -350,8 +484,8 @@ function Scholarships() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Post a Scholarship Opportunity</h2>
-                <button onClick={() => setShowPostModal(false)} className="text-gray-400 hover:text-gray-600">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">{editingScholarshipId ? 'Edit Scholarship Opportunity' : 'Post a Scholarship Opportunity'}</h2>
+                <button onClick={() => { setShowPostModal(false); resetScholarshipForm() }} className="text-gray-400 hover:text-gray-600">
                   <i className="fas fa-times text-xl"></i>
                 </button>
               </div>
@@ -420,8 +554,10 @@ function Scholarships() {
                   <textarea rows={3} required value={newScholarship.description} onChange={(e) => setNewScholarship({...newScholarship, description: e.target.value})} className="input-professional" placeholder="Provide additional details about the scholarship"></textarea>
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setShowPostModal(false)} className="flex-1 btn-secondary">Cancel</button>
-                  <button type="submit" className="flex-1 btn-primary">Post Scholarship</button>
+                  <button type="button" onClick={() => { setShowPostModal(false); resetScholarshipForm() }} className="flex-1 btn-secondary">Cancel</button>
+                  <button type="submit" disabled={submitting} className="flex-1 btn-primary disabled:opacity-60">
+                    {submitting ? 'Saving...' : editingScholarshipId ? 'Update Scholarship' : 'Post Scholarship'}
+                  </button>
                 </div>
               </form>
             </div>
@@ -442,6 +578,14 @@ function Scholarships() {
                     {showDetailModal.fundingType === 'Full' ? 'Fully Funded' : 'Partially Funded'}
                   </span>
                   <h2 className="text-xl font-bold text-gray-800 dark:text-white">{showDetailModal.name}</h2>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-3 py-1 text-xs font-semibold">
+                      {getPostRoleLabel(showDetailModal.role)}
+                    </span>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusMeta(showDetailModal.status).className}`}>
+                      {getStatusMeta(showDetailModal.status).label}
+                    </span>
+                  </div>
                 </div>
                 <button onClick={() => setShowDetailModal(null)} className="text-gray-400 hover:text-gray-600">
                   <i className="fas fa-times text-xl"></i>
@@ -493,7 +637,13 @@ function Scholarships() {
                     <i className="fas fa-user-circle text-teal-500"></i>
                     Posted by <span className="font-medium text-gray-700 dark:text-gray-300">{showDetailModal.postedBy.name}</span>
                   </p>
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
+                    {showDetailModal.canManage && (
+                      <>
+                        <button onClick={() => openEditScholarship(showDetailModal)} className="btn-secondary">Edit</button>
+                        <button onClick={() => handleDeleteScholarship(showDetailModal)} className="px-4 py-2.5 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-900/30">Delete</button>
+                      </>
+                    )}
                     <button onClick={() => setShowDetailModal(null)} className="flex-1 btn-secondary">Close</button>
                     <a 
                       href={showDetailModal.link} 
@@ -545,6 +695,15 @@ function Scholarships() {
                   </span>
                   <span className="card-tag card-tag-amber">
                     <i className="fas fa-map-marker-alt text-[10px]"></i> {scholarship.location}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2.5 py-0.5 text-xs font-semibold">
+                    {getPostRoleLabel(scholarship.role)}
+                  </span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusMeta(scholarship.status).className}`}>
+                    {getStatusMeta(scholarship.status).label}
                   </span>
                 </div>
 

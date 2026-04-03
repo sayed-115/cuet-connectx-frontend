@@ -199,6 +199,11 @@ export const jobsAPI = {
     const queryString = new URLSearchParams(cleaned).toString();
     return apiCall(`/jobs${queryString ? '?' + queryString : ''}`);
   },
+  getMine: (params = {}) => {
+    const cleaned = cleanQueryParams(params);
+    const queryString = new URLSearchParams(cleaned).toString();
+    return apiCall(`/jobs/mine${queryString ? '?' + queryString : ''}`);
+  },
   getById: (id) => apiCall(`/jobs/${id}`),
   create: (data) => apiCall('/jobs', {
     method: 'POST',
@@ -222,6 +227,11 @@ export const scholarshipsAPI = {
     }
     const queryString = new URLSearchParams(cleaned).toString();
     return apiCall(`/scholarships${queryString ? '?' + queryString : ''}`);
+  },
+  getMine: (params = {}) => {
+    const cleaned = cleanQueryParams(params);
+    const queryString = new URLSearchParams(cleaned).toString();
+    return apiCall(`/scholarships/mine${queryString ? '?' + queryString : ''}`);
   },
   getById: (id) => apiCall(`/scholarships/${id}`),
   create: (data) => apiCall('/scholarships', {
@@ -317,35 +327,49 @@ export const adminAPI = {
   uploadPostImage: (file) => uploadFile('/admin/upload/post-image', file),
   // Jobs
   getJobs: (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    return apiCall(`/admin/jobs${queryString ? '?' + queryString : ''}`);
+    const cleaned = cleanQueryParams(params);
+    const queryString = new URLSearchParams(cleaned).toString();
+    return apiCall(`/jobs/all${queryString ? '?' + queryString : ''}`);
   },
-  createJob: (data) => apiCall('/admin/jobs', {
+  createJob: (data) => apiCall('/jobs', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  updateJob: (id, data) => apiCall(`/admin/jobs/${id}`, {
+  updateJob: (id, data) => apiCall(`/jobs/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
-  deleteJob: (id) => apiCall(`/admin/jobs/${id}`, {
+  deleteJob: (id) => apiCall(`/jobs/${id}`, {
     method: 'DELETE',
+  }),
+  approveJob: (id) => apiCall(`/jobs/${id}/approve`, {
+    method: 'PUT',
+  }),
+  rejectJob: (id) => apiCall(`/jobs/${id}/reject`, {
+    method: 'PUT',
   }),
   // Scholarships
   getScholarships: (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    return apiCall(`/admin/scholarships${queryString ? '?' + queryString : ''}`);
+    const cleaned = cleanQueryParams(params);
+    const queryString = new URLSearchParams(cleaned).toString();
+    return apiCall(`/scholarships/all${queryString ? '?' + queryString : ''}`);
   },
-  createScholarship: (data) => apiCall('/admin/scholarships', {
+  createScholarship: (data) => apiCall('/scholarships', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  updateScholarship: (id, data) => apiCall(`/admin/scholarships/${id}`, {
+  updateScholarship: (id, data) => apiCall(`/scholarships/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
-  deleteScholarship: (id) => apiCall(`/admin/scholarships/${id}`, {
+  deleteScholarship: (id) => apiCall(`/scholarships/${id}`, {
     method: 'DELETE',
+  }),
+  approveScholarship: (id) => apiCall(`/scholarships/${id}/approve`, {
+    method: 'PUT',
+  }),
+  rejectScholarship: (id) => apiCall(`/scholarships/${id}/reject`, {
+    method: 'PUT',
   }),
   // Community
   getPosts: (params = {}) => {
