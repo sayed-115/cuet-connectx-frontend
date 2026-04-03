@@ -14,10 +14,113 @@ const INITIAL_FILTERS = {
   role: '',
 }
 
+const normalizeOptionValue = (value) => String(value || '').trim().toLowerCase()
+
+const buildOptionsFromValues = (values) => {
+  const optionMap = new Map()
+
+  values.forEach((value) => {
+    const label = String(value || '').trim()
+    if (!label) return
+
+    const normalized = normalizeOptionValue(label)
+    if (!optionMap.has(normalized)) {
+      optionMap.set(normalized, label)
+    }
+  })
+
+  return Array.from(optionMap.entries())
+    .sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([value, label]) => ({ value, label }))
+}
+
+const mergeDynamicOptions = (previousOptions, incomingOptions) => {
+  const optionMap = new Map(previousOptions.map((option) => [option.value, option.label]))
+
+  incomingOptions.forEach((option) => {
+    if (!optionMap.has(option.value)) {
+      optionMap.set(option.value, option.label)
+    }
+  })
+
+  return Array.from(optionMap.entries())
+    .sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([value, label]) => ({ value, label }))
+}
+
+const getScholarshipLevels = (scholarship) => {
+  const searchableText = `${scholarship.title || ''} ${scholarship.description || ''} ${scholarship.eligibility || ''}`.toLowerCase()
+  const levelLabels = []
+
+  if (/\b(undergraduate|bachelor|bsc|bs|honou?rs|honors)\b/.test(searchableText)) {
+    levelLabels.push('Undergraduate')
+  }
+  if (/\b(master|msc|ms)\b/.test(searchableText)) {
+    levelLabels.push("Master's")
+  }
+  if (/\b(phd|doctorate|doctoral)\b/.test(searchableText)) {
+    levelLabels.push('PhD')
+  }
+  if (/\b(postdoc|post-doc)\b/.test(searchableText)) {
+    levelLabels.push('Postdoc')
+  }
+
+  return levelLabels.length > 0 ? levelLabels : ["Master's"]
+}
+
+const getScholarshipLocation = (scholarship) => {
+  const searchableText = `${scholarship.title || ''} ${scholarship.description || ''} ${scholarship.eligibility || ''} ${scholarship.organization || ''}`.toLowerCase()
+
+  if (/\b(bangladesh|dhaka|chittagong|cuet)\b/.test(searchableText)) {
+    return 'Bangladesh'
+  }
+
+  if (/\b(usa|united states)\b/.test(searchableText)) {
+    return 'USA'
+  }
+
+  if (/\b(uk|united kingdom|england)\b/.test(searchableText)) {
+    return 'UK'
+  }
+
+  if (/\beurope\b/.test(searchableText)) {
+    return 'Europe'
+  }
+
+  if (/\basia\b/.test(searchableText)) {
+    return 'Asia'
+  }
+
+  if (/\baustralia\b/.test(searchableText)) {
+    return 'Australia'
+  }
+
+  return 'International'
+}
+
+const getScholarshipFundingType = (scholarship) => {
+  const searchableText = `${scholarship.amount || ''} ${scholarship.description || ''}`.toLowerCase()
+
+  if (searchableText.includes('full')) {
+    return 'Full'
+  }
+  if (searchableText.includes('tuition')) {
+    return 'Tuition Only'
+  }
+  if (searchableText.includes('stipend')) {
+    return 'Stipend'
+  }
+
+  return 'Partial'
+}
+
 function Scholarships() {
   const [savedScholarships, setSavedScholarships] = useState([])
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [levelOptions, setLevelOptions] = useState([])
+  const [locationOptions, setLocationOptions] = useState([])
+  const [fundingTypeOptions, setFundingTypeOptions] = useState([])
   const [showPostModal, setShowPostModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
   const [newScholarship, setNewScholarship] = useState({ 
@@ -81,24 +184,16 @@ function Scholarships() {
         console.debug('[Scholarships] API request params', activeFilters)
         const response = await scholarshipsAPI.getAll(activeFilters)
         if (response.success) {
-          const formattedScholarships = response.scholarships.map(s => ({
+          const formattedScholarships = response.scholarships.map((s) => {
+            const detectedLevels = getScholarshipLevels(s)
+
+            return {
+            levels: detectedLevels,
             id: s._id,
             name: s.title,
-            level: s.description?.toLowerCase().includes('undergraduate')
-              ? 'Undergraduate'
-              : s.description?.toLowerCase().includes('postdoc')
-                ? 'Postdoc'
-                : s.description?.toLowerCase().includes('phd')
-                  ? 'PhD'
-                  : "Master's, PhD",
-            location: s.description?.toLowerCase().includes('bangladesh') ? 'Bangladesh' : 'International',
-            fundingType: s.amount?.toLowerCase().includes('full')
-              ? 'Full'
-              : s.amount?.toLowerCase().includes('tuition')
-                ? 'Tuition Only'
-                : s.amount?.toLowerCase().includes('stipend')
-                  ? 'Stipend'
-                  : 'Partial',
+            level: detectedLevels.join(', '),
+            location: getScholarshipLocation(s),
+            fundingType: getScholarshipFundingType(s),
             duration: '1-4 years',
             fundingDetails: s.amount || 'Varies',
             deadline: s.deadline ? new Date(s.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
@@ -113,9 +208,17 @@ function Scholarships() {
                 type: (s.postedBy.role || s.postedBy.userType || 'Alumni').replace(/^./, (c) => c.toUpperCase())
               }
               : { name: 'CUET Alumni', type: 'Alumni' }
-          }))
+            }
+          })
 
           console.debug('[Scholarships] response count', formattedScholarships.length)
+          const nextLevelOptions = buildOptionsFromValues(formattedScholarships.flatMap((scholarship) => scholarship.levels || []))
+          const nextLocationOptions = buildOptionsFromValues(formattedScholarships.map((scholarship) => scholarship.location))
+          const nextFundingTypeOptions = buildOptionsFromValues(formattedScholarships.map((scholarship) => scholarship.fundingType))
+
+          setLevelOptions(prev => mergeDynamicOptions(prev, nextLevelOptions))
+          setLocationOptions(prev => mergeDynamicOptions(prev, nextLocationOptions))
+          setFundingTypeOptions(prev => mergeDynamicOptions(prev, nextFundingTypeOptions))
           scholarshipsCacheRef.current.set(cacheKey, formattedScholarships)
           setScholarships(formattedScholarships)
         }
@@ -128,29 +231,9 @@ function Scholarships() {
     fetchScholarships()
   }, [activeFilters])
 
-  const levels = [
-    { label: 'All Levels', value: '' },
-    { label: 'Undergraduate', value: 'undergraduate' },
-    { label: "Master's", value: 'masters' },
-    { label: 'PhD', value: 'phd' },
-    { label: 'Postdoc', value: 'postdoc' },
-  ]
-  const locations = [
-    { label: 'All Locations', value: '' },
-    { label: 'Bangladesh', value: 'bangladesh' },
-    { label: 'USA', value: 'usa' },
-    { label: 'UK', value: 'uk' },
-    { label: 'Europe', value: 'europe' },
-    { label: 'Asia', value: 'asia' },
-    { label: 'Australia', value: 'australia' },
-  ]
-  const fundingTypes = [
-    { label: 'Funding Type', value: '' },
-    { label: 'Full', value: 'full' },
-    { label: 'Partial', value: 'partial' },
-    { label: 'Tuition Only', value: 'tuition only' },
-    { label: 'Stipend', value: 'stipend' },
-  ]
+  const levels = [{ label: 'All Levels', value: '' }, ...levelOptions]
+  const locations = [{ label: 'All Locations', value: '' }, ...locationOptions]
+  const fundingTypes = [{ label: 'Funding Type', value: '' }, ...fundingTypeOptions]
 
   const handleSaveScholarship = (scholarshipId) => {
     if (!isLoggedIn) {

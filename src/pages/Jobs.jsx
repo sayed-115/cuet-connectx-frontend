@@ -14,11 +14,48 @@ const INITIAL_FILTERS = {
   role: '',
 }
 
+const normalizeOptionValue = (value) => String(value || '').trim().toLowerCase()
+
+const buildOptionsFromValues = (values) => {
+  const optionMap = new Map()
+
+  values.forEach((value) => {
+    const label = String(value || '').trim()
+    if (!label) return
+
+    const normalized = normalizeOptionValue(label)
+    if (!optionMap.has(normalized)) {
+      optionMap.set(normalized, label)
+    }
+  })
+
+  return Array.from(optionMap.entries())
+    .sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([value, label]) => ({ value, label }))
+}
+
+const mergeDynamicOptions = (previousOptions, incomingOptions) => {
+  const optionMap = new Map(previousOptions.map((option) => [option.value, option.label]))
+
+  incomingOptions.forEach((option) => {
+    if (!optionMap.has(option.value)) {
+      optionMap.set(option.value, option.label)
+    }
+  })
+
+  return Array.from(optionMap.entries())
+    .sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([value, label]) => ({ value, label }))
+}
+
 function Jobs() {
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [appliedJobs, setAppliedJobs] = useState([])
   const [savedJobs, setSavedJobs] = useState([])
+  const [jobTypeOptions, setJobTypeOptions] = useState([])
+  const [locationOptions, setLocationOptions] = useState([])
+  const [experienceOptions, setExperienceOptions] = useState([])
   const [showPostModal, setShowPostModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
   const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
@@ -96,6 +133,13 @@ function Jobs() {
           }))
 
           console.debug('[Jobs] response count', formattedJobs.length)
+          const nextJobTypeOptions = buildOptionsFromValues(formattedJobs.map(job => job.type))
+          const nextLocationOptions = buildOptionsFromValues(formattedJobs.map(job => job.location))
+          const nextExperienceOptions = buildOptionsFromValues(formattedJobs.map(job => job.experience))
+
+          setJobTypeOptions(prev => mergeDynamicOptions(prev, nextJobTypeOptions))
+          setLocationOptions(prev => mergeDynamicOptions(prev, nextLocationOptions))
+          setExperienceOptions(prev => mergeDynamicOptions(prev, nextExperienceOptions))
           jobsCacheRef.current.set(cacheKey, formattedJobs)
           setJobs(formattedJobs)
         }
@@ -121,30 +165,9 @@ function Jobs() {
     return `${Math.ceil(diffDays / 30)} months ago`
   }
 
-  const jobTypes = [
-    { label: 'All Job Types', value: '' },
-    { label: 'Full-time', value: 'full-time' },
-    { label: 'Part-time', value: 'part-time' },
-    { label: 'Contract', value: 'contract' },
-    { label: 'Internship', value: 'internship' },
-    { label: 'Remote', value: 'remote' },
-  ]
-  const locations = [
-    { label: 'All Locations', value: '' },
-    { label: 'Remote', value: 'remote' },
-    { label: 'Dhaka', value: 'dhaka' },
-    { label: 'Chittagong', value: 'chittagong' },
-    { label: 'San Francisco', value: 'san francisco' },
-    { label: 'New York', value: 'new york' },
-    { label: 'London', value: 'london' },
-  ]
-  const experienceLevels = [
-    { label: 'Experience Level', value: '' },
-    { label: 'Entry Level', value: 'entry level' },
-    { label: 'Intermediate', value: 'intermediate' },
-    { label: 'Senior Level', value: 'senior level' },
-    { label: 'Lead/Manager', value: 'lead/manager' },
-  ]
+  const jobTypes = [{ label: 'All Job Types', value: '' }, ...jobTypeOptions]
+  const locations = [{ label: 'All Locations', value: '' }, ...locationOptions]
+  const experienceLevels = [{ label: 'Experience Level', value: '' }, ...experienceOptions]
 
   const handleApply = (jobId) => {
     if (!isLoggedIn) {

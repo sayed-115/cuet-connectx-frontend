@@ -18,6 +18,7 @@ function Community() {
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [members, setMembers] = useState([])
+  const [memberTypeOptions, setMemberTypeOptions] = useState([])
   const [departmentOptions, setDepartmentOptions] = useState([])
   const [batchOptions, setBatchOptions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -90,7 +91,7 @@ function Community() {
               name: u.fullName,
               studentId: u.studentId,
               batch: u.batch || (studentIdText.length >= 2 ? `20${studentIdText.substring(0, 2)}` : 'Unknown'),
-              department: u.departmentShort || 'CSE',
+              department: u.departmentShort || 'Unknown',
               profileImage: u.profileImage || null,
               initials: u.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
               type: (u.role || u.userType) === 'alumni' ? 'Alumni' : 'Student',
@@ -101,15 +102,43 @@ function Community() {
               }
             })
 
-          const nextBatchOptions = Array.from(new Set(formattedMembers.map(m => m.batch))).sort()
+          const nextMemberTypeOptions = Array.from(
+            new Set(
+              formattedMembers
+                .map(m => String(m.type || '').trim())
+                .filter(Boolean)
+            )
+          )
+            .sort((a, b) => a.localeCompare(b))
+            .map((typeLabel) => ({ label: typeLabel, value: typeLabel.toLowerCase() }))
+
+          const nextBatchOptions = Array.from(
+            new Set(
+              formattedMembers
+                .map(m => String(m.batch || '').trim())
+                .filter((batch) => batch && batch.toLowerCase() !== 'unknown')
+            )
+          ).sort()
           const nextDepartmentOptions = Array.from(
             new Set(
               formattedMembers
                 .map(m => String(m.department || '').trim())
-                .filter(Boolean)
+                .filter((department) => department && department.toLowerCase() !== 'unknown')
             )
           ).sort()
 
+          setMemberTypeOptions(prev => {
+            const optionMap = new Map(prev.map(option => [option.value, option.label]))
+            nextMemberTypeOptions.forEach((option) => {
+              if (!optionMap.has(option.value)) {
+                optionMap.set(option.value, option.label)
+              }
+            })
+
+            return Array.from(optionMap.entries())
+              .sort((a, b) => a[1].localeCompare(b[1]))
+              .map(([value, label]) => ({ value, label }))
+          })
           setBatchOptions(prev => Array.from(new Set([...prev, ...nextBatchOptions])).sort())
           setDepartmentOptions(prev => Array.from(new Set([...prev, ...nextDepartmentOptions])).sort())
           console.debug('[Community] response count', formattedMembers.length)
@@ -125,11 +154,7 @@ function Community() {
     fetchUsers()
   }, [activeFilters, user?.studentId])
 
-  const memberTypes = [
-    { label: 'All Members', value: '' },
-    { label: 'Alumni', value: 'alumni' },
-    { label: 'Student', value: 'student' },
-  ]
+  const memberTypes = [{ label: 'All Members', value: '' }, ...memberTypeOptions]
   const departments = ['All Departments', ...departmentOptions]
   const batches = ['All Batches', ...batchOptions]
 

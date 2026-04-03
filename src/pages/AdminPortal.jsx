@@ -35,6 +35,7 @@ function AdminPortal() {
   const [tableLoading, setTableLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [role, setRole] = useState('');
+  const [roleOptions, setRoleOptions] = useState([]);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0, limit: 10 });
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -139,6 +140,11 @@ function AdminPortal() {
     ? user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
     : 'AD';
 
+  const formatRoleLabel = (roleValue) =>
+    String(roleValue || '')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
   // ── API calls ────────────────────────────────────────────
   const loadDashboard = async () => {
     try {
@@ -159,7 +165,18 @@ function AdminPortal() {
         search: nextSearch,
         role: nextRole,
       });
-      setUsers(response.data.users || []);
+      const nextUsers = response.data.users || [];
+      setUsers(nextUsers);
+
+      const nextRoleOptions = Array.from(
+        new Set(
+          nextUsers
+            .map((entry) => String(entry.role || entry.userType || '').toLowerCase().trim())
+            .filter(Boolean)
+        )
+      ).sort();
+
+      setRoleOptions((prev) => Array.from(new Set([...prev, ...nextRoleOptions])).sort());
       setPagination(response.data.pagination || { page: 1, pages: 1, total: 0, limit: 10 });
     } catch (error) {
       showToast(error.message || 'Failed to load users', 'error');
@@ -576,9 +593,9 @@ function AdminPortal() {
                       className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                     >
                       <option value="">All Roles</option>
-                      <option value="student">Student</option>
-                      <option value="alumni">Alumni</option>
-                      <option value="admin">Admin</option>
+                      {roleOptions.map((roleOption) => (
+                        <option key={roleOption} value={roleOption}>{formatRoleLabel(roleOption)}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
