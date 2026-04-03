@@ -3,7 +3,17 @@ import { adminAPI } from '../../services/api';
 import Pagination from './Pagination';
 import ConfirmModal from './ConfirmModal';
 
-const emptyJob = { title: '', company: '', location: '', type: 'Full-time', description: '', requirements: '', salary: { min: '', max: '' }, deadline: '', applyLink: '', jobImage: '' };
+const emptyJob = {
+  company: '',
+  title: '',
+  location: '',
+  type: '',
+  experience: '',
+  deadline: '',
+  requirements: '',
+  responsibilities: '',
+  applicationLink: ''
+};
 
 function JobsManagement({ showToast }) {
   const [jobs, setJobs] = useState([]);
@@ -18,9 +28,6 @@ function JobsManagement({ showToast }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(emptyJob);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [uploading, setUploading] = useState(false);
 
   const loadJobs = useCallback(async (p = page, s = search, status = statusFilter) => {
     setLoading(true);
@@ -41,50 +48,49 @@ function JobsManagement({ showToast }) {
     return () => clearTimeout(t);
   }, [page, search, statusFilter, loadJobs]);
 
-  const openCreate = () => { setEditId(null); setForm(emptyJob); setImageFile(null); setImagePreview(null); setFormOpen(true); };
+  const openCreate = () => { setEditId(null); setForm(emptyJob); setFormOpen(true); };
   const openEdit = (job) => {
     setEditId(job._id);
     setForm({
-      title: job.title || '',
       company: job.company || '',
+      title: job.title || '',
       location: job.location || '',
-      type: job.type || 'Full-time',
-      description: job.description || '',
-      requirements: (job.requirements || []).join(', '),
-      salary: { min: job.salary?.min || '', max: job.salary?.max || '' },
+      type: job.type || '',
+      experience: job.experience || '',
       deadline: job.applicationDeadline ? new Date(job.applicationDeadline).toISOString().split('T')[0] : '',
-      applyLink: job.applyLink || '',
-      jobImage: job.jobImage || ''
+      requirements: (job.requirements || []).join('\n'),
+      responsibilities: (job.responsibilities || []).join('\n'),
+      applicationLink: job.applyLink || ''
     });
-    setImageFile(null);
-    setImagePreview(job.jobImage || null);
     setFormOpen(true);
-  };
-
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
-    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setActionLoading(true);
     try {
-      let jobImageUrl = form.jobImage || '';
-      if (imageFile) {
-        setUploading(true);
-        const uploadRes = await adminAPI.uploadJobImage(imageFile);
-        jobImageUrl = uploadRes.imageUrl;
-        setUploading(false);
-      }
+      const requirementsList = String(form.requirements || '')
+        .split(/\r?\n|,/) 
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+
+      const responsibilitiesList = String(form.responsibilities || '')
+        .split(/\r?\n|,/) 
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+
       const payload = {
-        ...form,
-        jobImage: jobImageUrl,
-        requirements: form.requirements ? form.requirements.split(',').map(r => r.trim()).filter(Boolean) : [],
-        salary: { min: Number(form.salary.min) || undefined, max: Number(form.salary.max) || undefined }
+        company: form.company,
+        title: form.title,
+        location: form.location,
+        type: form.type,
+        experience: form.experience,
+        deadline: form.deadline,
+        requirements: requirementsList,
+        responsibilities: responsibilitiesList,
+        description: responsibilitiesList.join('. ') || requirementsList.join('. ') || `${form.title} at ${form.company}`,
+        applicationLink: form.applicationLink,
+        applyLink: form.applicationLink,
       };
       if (editId) {
         await adminAPI.updateJob(editId, payload);
@@ -184,29 +190,129 @@ function JobsManagement({ showToast }) {
       {/* Create/Edit Form */}
       {formOpen && (
         <form onSubmit={handleSubmit} className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-700/50">
-          <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{editId ? 'Edit Job' : 'Create Job'}</h3>
+          <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{editId ? 'Edit Job Opportunity' : 'Post a Job Opportunity'}</h3>
+
           <div className="grid gap-3 sm:grid-cols-2">
-            <input required placeholder="Job Title *" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
-            <input required placeholder="Company *" value={form.company} onChange={e => setForm({...form, company: e.target.value})} className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
-            <input placeholder="Location" value={form.location} onChange={e => setForm({...form, location: e.target.value})} className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
-            <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white">
-              {['Full-time', 'Part-time', 'Contract', 'Internship', 'Remote'].map(t => <option key={t}>{t}</option>)}
-            </select>
-            <input placeholder="Min Salary" type="number" value={form.salary.min} onChange={e => setForm({...form, salary: {...form.salary, min: e.target.value}})} className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
-            <input placeholder="Max Salary" type="number" value={form.salary.max} onChange={e => setForm({...form, salary: {...form.salary, max: e.target.value}})} className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
-            <input placeholder="Deadline" type="date" value={form.deadline} onChange={e => setForm({...form, deadline: e.target.value})} className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
-            <input placeholder="Apply Link" value={form.applyLink} onChange={e => setForm({...form, applyLink: e.target.value})} className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Company Name *</label>
+              <input
+                required
+                placeholder="Enter company name"
+                value={form.company}
+                onChange={e => setForm({ ...form, company: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Job Role/Title *</label>
+              <input
+                required
+                placeholder="e.g., Software Engineer"
+                value={form.title}
+                onChange={e => setForm({ ...form, title: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
           </div>
-          <textarea required placeholder="Description *" value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
-          <input placeholder="Requirements (comma-separated)" value={form.requirements} onChange={e => setForm({...form, requirements: e.target.value})} className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Location *</label>
+              <input
+                required
+                placeholder="e.g., Dhaka, Remote"
+                value={form.location}
+                onChange={e => setForm({ ...form, location: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Job Type *</label>
+              <select
+                required
+                value={form.type}
+                onChange={e => setForm({ ...form, type: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">Select job type</option>
+                <option>Full-time</option>
+                <option>Part-time</option>
+                <option>Contract</option>
+                <option>Internship</option>
+                <option>Remote</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Experience Level *</label>
+              <select
+                required
+                value={form.experience}
+                onChange={e => setForm({ ...form, experience: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">Select experience level</option>
+                <option>Entry Level</option>
+                <option>Intermediate</option>
+                <option>Senior Level</option>
+                <option>Lead/Manager</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Application Deadline *</label>
+              <input
+                required
+                type="date"
+                value={form.deadline}
+                onChange={e => setForm({ ...form, deadline: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+          </div>
+
           <div className="mt-3">
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Job Image</label>
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100 dark:text-gray-400 dark:file:bg-blue-900/30 dark:file:text-blue-400" />
-            {imagePreview && <img src={imagePreview} alt="Preview" className="mt-2 h-20 rounded-lg object-cover" />}
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Requirements *</label>
+            <textarea
+              rows={3}
+              required
+              placeholder="List the required qualifications and skills"
+              value={form.requirements}
+              onChange={e => setForm({ ...form, requirements: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+
+          <div className="mt-3">
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Responsibilities *</label>
+            <textarea
+              rows={3}
+              required
+              placeholder="Describe the job responsibilities"
+              value={form.responsibilities}
+              onChange={e => setForm({ ...form, responsibilities: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+
+          <div className="mt-3">
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Application Link *</label>
+            <input
+              type="url"
+              required
+              placeholder="https://example.com/apply"
+              value={form.applicationLink}
+              onChange={e => setForm({ ...form, applicationLink: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">URL where applicants can apply for this position</p>
           </div>
           <div className="mt-3 flex gap-2">
             <button type="submit" disabled={actionLoading} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-              {uploading ? 'Uploading image...' : actionLoading ? 'Saving...' : editId ? 'Update' : 'Create'}
+              {actionLoading ? 'Saving...' : editId ? 'Update Job' : 'Post Job'}
             </button>
             <button type="button" onClick={() => { setFormOpen(false); setEditId(null); }} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
               Cancel
