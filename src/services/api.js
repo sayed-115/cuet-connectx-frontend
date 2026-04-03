@@ -1,6 +1,12 @@
 // API Service for CUET-ConnectX
 const RENDER_API_URL = 'https://cuet-connectx-backend.onrender.com/api';
-const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+const LEGACY_RENDER_API_PATTERN = /cuet-connectx-backend-1\.onrender\.com\/api/i;
+let configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+
+if (import.meta.env.PROD && LEGACY_RENDER_API_PATTERN.test(configuredApiUrl)) {
+  console.warn(`[API] Legacy backend URL detected (${configuredApiUrl}). Switching to ${RENDER_API_URL}`);
+  configuredApiUrl = RENDER_API_URL;
+}
 
 const fallbackApiUrl = import.meta.env.DEV
   ? 'http://localhost:5000/api'
