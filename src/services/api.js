@@ -1,10 +1,5 @@
 // API Service for CUET-ConnectX
-const RENDER_API_URL = 'https://cuet-connectx-backend.onrender.com/api';
-const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
-const apiUrlCandidate = configuredApiUrl || RENDER_API_URL;
-const API_URL = import.meta.env.PROD && apiUrlCandidate !== RENDER_API_URL
-  ? RENDER_API_URL
-  : apiUrlCandidate;
+const API_URL = 'https://cuet-connectx-backend.onrender.com/api';
 
 function normalizeFilterValue(value) {
   if (typeof value === 'string') return value.toLowerCase().trim();
@@ -21,14 +16,6 @@ function cleanQueryParams(params = {}) {
     cleaned[key] = normalized;
   });
   return cleaned;
-}
-
-if (!configuredApiUrl) {
-  console.warn(`[API] VITE_API_URL is not set. Using fallback API URL: ${API_URL}`);
-}
-
-if (import.meta.env.PROD && configuredApiUrl && configuredApiUrl !== RENDER_API_URL) {
-  console.warn(`[API] Unsupported production VITE_API_URL (${configuredApiUrl}). Using ${RENDER_API_URL}`);
 }
 
 if (import.meta.env.PROD && /localhost/i.test(API_URL)) {
