@@ -139,6 +139,7 @@ function AdminPortal() {
   const adminInitials = user?.fullName
     ? user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
     : 'AD';
+  const profileCoverImage = profileData?.coverImage || user?.coverImage || '';
 
   const formatRoleLabel = (roleValue) =>
     String(roleValue || '')
@@ -635,7 +636,16 @@ function AdminPortal() {
                   <>
                     {/* Profile Header Card */}
                     <div className="rounded-xl bg-white shadow-sm dark:bg-gray-800">
-                      <div className="h-32 rounded-t-xl bg-linear-to-r from-teal-500 to-teal-700"></div>
+                      <div className="relative h-32 overflow-hidden rounded-t-xl">
+                        {profileCoverImage ? (
+                          <>
+                            <img src={profileCoverImage} alt="" className="h-full w-full object-cover" />
+                            <div className="absolute inset-0 bg-black/15" />
+                          </>
+                        ) : (
+                          <div className="h-full w-full bg-linear-to-r from-teal-500 to-teal-700" />
+                        )}
+                      </div>
                       <div className="relative px-6 pb-6">
                         <div className="-mt-12 flex flex-col items-start gap-4 sm:flex-row sm:items-end">
                           {(profileData?.profileImage || user?.profileImage) ? (
