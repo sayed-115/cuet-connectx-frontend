@@ -259,12 +259,6 @@ export const postsAPI = {
   delete: (id) => apiCall(`/posts/${id}`, {
     method: 'DELETE',
   }),
-  approve: (id) => apiCall(`/posts/${id}/approve`, {
-    method: 'PATCH',
-  }),
-  reject: (id) => apiCall(`/posts/${id}/reject`, {
-    method: 'PATCH',
-  }),
 };
 
 // Helper: upload a file via FormData to an endpoint (no JSON content-type)
@@ -317,34 +311,46 @@ export const adminAPI = {
   // Jobs
   getJobs: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
-    return apiCall(`/admin/jobs${queryString ? '?' + queryString : ''}`);
+    return apiCall(`/jobs/all${queryString ? '?' + queryString : ''}`);
   },
-  createJob: (data) => apiCall('/admin/jobs', {
+  createJob: (data) => apiCall('/jobs', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  updateJob: (id, data) => apiCall(`/admin/jobs/${id}`, {
+  updateJob: (id, data) => apiCall(`/jobs/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
-  deleteJob: (id) => apiCall(`/admin/jobs/${id}`, {
+  deleteJob: (id) => apiCall(`/jobs/${id}`, {
     method: 'DELETE',
+  }),
+  approveJob: (id) => apiCall(`/jobs/${id}/approve`, {
+    method: 'PUT',
+  }),
+  rejectJob: (id) => apiCall(`/jobs/${id}/reject`, {
+    method: 'PUT',
   }),
   // Scholarships
   getScholarships: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
-    return apiCall(`/admin/scholarships${queryString ? '?' + queryString : ''}`);
+    return apiCall(`/scholarships/all${queryString ? '?' + queryString : ''}`);
   },
-  createScholarship: (data) => apiCall('/admin/scholarships', {
+  createScholarship: (data) => apiCall('/scholarships', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  updateScholarship: (id, data) => apiCall(`/admin/scholarships/${id}`, {
+  updateScholarship: (id, data) => apiCall(`/scholarships/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
-  deleteScholarship: (id) => apiCall(`/admin/scholarships/${id}`, {
+  deleteScholarship: (id) => apiCall(`/scholarships/${id}`, {
     method: 'DELETE',
+  }),
+  approveScholarship: (id) => apiCall(`/scholarships/${id}/approve`, {
+    method: 'PUT',
+  }),
+  rejectScholarship: (id) => apiCall(`/scholarships/${id}/reject`, {
+    method: 'PUT',
   }),
   // Community
   getPosts: (params = {}) => {

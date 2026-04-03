@@ -7,7 +7,8 @@ import ConfirmModal from '../components/admin/ConfirmModal';
 import Toast from '../components/admin/Toast';
 import UserManagementTable from '../components/admin/UserManagementTable';
 import UserDetailModal from '../components/admin/UserDetailModal';
-import PostsManagement from '../components/admin/PostsManagement';
+import JobsManagement from '../components/admin/JobsManagement';
+import ScholarshipsManagement from '../components/admin/ScholarshipsManagement';
 import CommunityModeration from '../components/admin/CommunityModeration';
 
 const initialStats = {
@@ -17,7 +18,13 @@ const initialStats = {
   totalBannedUsers: 0,
   totalAdmins: 0,
   totalJobs: 0,
+  pendingJobs: 0,
+  approvedJobs: 0,
+  rejectedJobs: 0,
   totalScholarships: 0,
+  pendingScholarships: 0,
+  approvedScholarships: 0,
+  rejectedScholarships: 0,
   totalPosts: 0,
 };
 
@@ -95,6 +102,7 @@ function AdminPortal() {
       {
         title: 'Jobs',
         value: dashboard.totalJobs,
+        meta: `P:${dashboard.pendingJobs || 0} A:${dashboard.approvedJobs || 0} R:${dashboard.rejectedJobs || 0}`,
         icon: (
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z" />
@@ -106,6 +114,7 @@ function AdminPortal() {
       {
         title: 'Scholarships',
         value: dashboard.totalScholarships,
+        meta: `P:${dashboard.pendingScholarships || 0} A:${dashboard.approvedScholarships || 0} R:${dashboard.rejectedScholarships || 0}`,
         icon: (
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -316,8 +325,17 @@ function AdminPortal() {
       ),
     },
     {
-      id: 'posts',
-      label: 'Posts',
+      id: 'jobs',
+      label: 'Jobs',
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'scholarships',
+      label: 'Scholarships',
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -345,7 +363,7 @@ function AdminPortal() {
   ];
 
   // Tab labels for topbar breadcrumb
-  const tabLabels = { dashboard: 'Dashboard', users: 'Users', posts: 'Posts', community: 'Community', profile: 'Profile' };
+  const tabLabels = { dashboard: 'Dashboard', users: 'Users', jobs: 'Jobs', scholarships: 'Scholarships', community: 'Community', profile: 'Profile' };
 
   // ── loading screen ───────────────────────────────────────
   if (loading) {
@@ -505,6 +523,9 @@ function AdminPortal() {
                         <div>
                           <p className="text-sm text-gray-500 dark:text-gray-400">{card.title}</p>
                           <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{card.value}</p>
+                          {card.meta && (
+                            <p className="mt-1 text-xs font-medium text-gray-500 dark:text-gray-400">{card.meta}</p>
+                          )}
                         </div>
                         <div className={`rounded-lg p-2.5 ${card.bg} ${card.text}`}>{card.icon}</div>
                       </div>
@@ -605,8 +626,11 @@ function AdminPortal() {
               </section>
             )}
 
-            {/* ── Posts Tab ───────────────────────────── */}
-            {activeTab === 'posts' && <PostsManagement showToast={showToast} />}
+            {/* ── Jobs Tab ────────────────────────────── */}
+            {activeTab === 'jobs' && <JobsManagement showToast={showToast} />}
+
+            {/* ── Scholarships Tab ────────────────────── */}
+            {activeTab === 'scholarships' && <ScholarshipsManagement showToast={showToast} />}
 
             {/* ── Community Tab ───────────────────────── */}
             {activeTab === 'community' && <CommunityModeration showToast={showToast} />}
