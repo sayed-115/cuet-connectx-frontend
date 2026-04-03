@@ -1,31 +1,10 @@
 import { Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import cuetLogo from '../assets/logos/CUET_Vector_Logo.svg.png'
-
-// Import CUET campus images
-import aboveImg from '../assets/images/above.jpg'
-import centralfieldImg from '../assets/images/centralfield.jpg'
-import flowerImg from '../assets/images/flower.jpg'
-import gateImg from '../assets/images/gate.jpg'
-import gymImg from '../assets/images/gym.jpg'
-import incubatorImg from '../assets/images/incubator.jpg'
-import monumentImg from '../assets/images/monument.jpg'
-import registryImg from '../assets/images/registry.jpg'
-import tscImg from '../assets/images/TSC.jpg'
+import { HERO_IMAGES } from '../config/cdnImages'
 
 function Home() {
-  // Background slideshow images - CUET Campus
-  const heroImages = [
-    { src: gateImg, alt: 'CUET Main Gate' },
-    { src: aboveImg, alt: 'CUET Aerial View' },
-    { src: centralfieldImg, alt: 'CUET Central Field' },
-    { src: monumentImg, alt: 'CUET Monument' },
-    { src: tscImg, alt: 'CUET TSC' },
-    { src: registryImg, alt: 'CUET Registry Building' },
-    { src: incubatorImg, alt: 'CUET IT Incubator' },
-    { src: gymImg, alt: 'CUET Gymnasium' },
-    { src: flowerImg, alt: 'CUET Campus Flowers' },
-  ]
+  const heroImages = HERO_IMAGES
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
@@ -70,6 +49,9 @@ function Home() {
               src={image.src}
               alt={image.alt}
               className="w-full h-full object-cover"
+              loading={index === 0 ? 'eager' : 'lazy'}
+              fetchPriority={index === 0 ? 'high' : 'auto'}
+              decoding="async"
             />
           </div>
         ))}
