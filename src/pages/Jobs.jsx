@@ -59,20 +59,12 @@ function Jobs() {
   const [showPostModal, setShowPostModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
   const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
-  const [editingJobId, setEditingJobId] = useState(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitMessage, setSubmitMessage] = useState('')
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const jobsCacheRef = useRef(new Map())
-  const { isLoggedIn, user } = useAuth()
+  const { isLoggedIn } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const isAdmin = user?.role === 'admin'
-
-  const clearJobsCache = () => {
-    jobsCacheRef.current.clear()
-  }
 
   const navigateToLogin = () => {
     navigate('/login', { state: { from: location } })
@@ -117,7 +109,6 @@ function Jobs() {
         if (response.success) {
           const formattedJobs = response.jobs.map(job => ({
             id: job._id,
-            ownerId: job.createdBy?._id || job.createdBy || job.postedBy?._id || job.postedBy,
             title: job.title,
             company: job.company,
             location: job.location || 'Remote',
@@ -126,20 +117,16 @@ function Jobs() {
             salary: job.salary ? `${job.salary.currency} ${job.salary.min?.toLocaleString()}-${job.salary.max?.toLocaleString()}` : 'Competitive',
             experience: job.experience || 'Entry Level',
             deadline: job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
-            rawDeadline: job.applicationDeadline ? new Date(job.applicationDeadline).toISOString().split('T')[0] : '',
-            status: job.status || 'approved',
-            role: job.role || 'user',
             postedByAlumni: (job.postedBy?.role || job.postedBy?.userType || '').toLowerCase() === 'alumni',
             postedBy: job.postedBy ? { 
               name: job.postedBy.fullName, 
-              type: (job.postedBy.role || job.postedBy.userType || 'Alumni').replace(/^./, (c) => c.toUpperCase()), 
+              type: 'Alumni', 
               batch: job.postedBy.batch,
               position: `${job.postedBy.currentPosition || ''} at ${job.postedBy.company || ''}`
             } : { name: 'CUET Alumni', type: 'Alumni' },
             requirements: job.requirements || [],
             responsibilities: job.responsibilities || [],
             skills: job.skills || [],
-            description: job.description || '',
             applicationLink: job.applyLink || '#',
             icon: 'fa-briefcase',
             iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
@@ -202,143 +189,33 @@ function Jobs() {
     }
   }
 
-  const canManageJob = (job) => {
-    if (!job) return false
-    if (isAdmin) return true
-    const authUserId = String(user?._id || user?.id || '')
-    return Boolean(authUserId) && String(job.ownerId || '') === authUserId
-  }
-
-  const openCreateModal = () => {
-    setEditingJobId(null)
-    setNewJob({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
-    setSubmitMessage('')
-    setShowPostModal(true)
-  }
-
-  const openEditModal = (job) => {
-    if (!canManageJob(job)) return
-    setEditingJobId(job.id)
-    setNewJob({
-      title: job.title || '',
-      company: job.company || '',
-      location: job.location || '',
-      type: job.type || 'Full-time',
-      experience: job.experience || '',
-      deadline: job.rawDeadline || '',
-      requirements: Array.isArray(job.requirements) ? job.requirements.join(', ') : '',
-      responsibilities: Array.isArray(job.responsibilities) ? job.responsibilities.join(', ') : '',
-      applicationLink: job.applicationLink || '',
-    })
-    setSubmitMessage('')
-    setShowPostModal(true)
-  }
-
-  const handlePostJob = async (e) => {
+  const handlePostJob = (e) => {
     e.preventDefault()
     if (!isLoggedIn) {
       navigateToLogin()
       return
     }
-    setSubmitting(true)
-    setSubmitMessage('')
-    try {
-      const requirements = newJob.requirements
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean)
-
-      let successText = ''
-
-      const payload = {
-        title: newJob.title,
-        company: newJob.company,
-        location: newJob.location,
-        type: newJob.type,
-        requirements,
-        description: newJob.responsibilities || newJob.requirements,
-        deadline: newJob.deadline,
-        applyLink: newJob.applicationLink,
-      }
-
-      if (editingJobId) {
-        await jobsAPI.update(editingJobId, payload)
-        successText = 'Job updated successfully.'
-        setSubmitMessage(successText)
-      } else {
-        const createRes = await jobsAPI.create(payload)
-        if (createRes?.job?.status === 'pending') {
-          successText = 'Job submitted for admin approval.'
-        } else {
-          successText = 'Job posted successfully.'
-        }
-        setSubmitMessage(successText)
-      }
-
-      clearJobsCache()
-      const refreshed = await jobsAPI.getAll(activeFilters)
-      if (refreshed.success) {
-        const refreshedJobs = refreshed.jobs.map(job => ({
-          id: job._id,
-          ownerId: job.createdBy?._id || job.createdBy || job.postedBy?._id || job.postedBy,
-          title: job.title,
-          company: job.company,
-          location: job.location || 'Remote',
-          type: job.type || 'Full-time',
-          posted: getTimeAgo(job.createdAt),
-          salary: job.salary ? `${job.salary.currency} ${job.salary.min?.toLocaleString()}-${job.salary.max?.toLocaleString()}` : 'Competitive',
-          experience: job.experience || 'Entry Level',
-          deadline: job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
-          rawDeadline: job.applicationDeadline ? new Date(job.applicationDeadline).toISOString().split('T')[0] : '',
-          status: job.status || 'approved',
-          role: job.role || 'user',
-          postedByAlumni: (job.postedBy?.role || job.postedBy?.userType || '').toLowerCase() === 'alumni',
-          postedBy: job.postedBy
-            ? {
-                name: job.postedBy.fullName,
-                type: (job.postedBy.role || job.postedBy.userType || 'Alumni').replace(/^./, (c) => c.toUpperCase()),
-                batch: job.postedBy.batch,
-                position: `${job.postedBy.currentPosition || ''} at ${job.postedBy.company || ''}`,
-              }
-            : { name: 'CUET Alumni', type: 'Alumni' },
-          requirements: job.requirements || [],
-          responsibilities: job.responsibilities || [],
-          skills: job.skills || [],
-          description: job.description || '',
-          applicationLink: job.applyLink || '#',
-          icon: 'fa-briefcase',
-          iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400',
-        }))
-        setJobs(refreshedJobs)
-      }
-
-      setEditingJobId(null)
-      setNewJob({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
-      setShowPostModal(false)
-      if (successText) {
-        window.alert(successText)
-      }
-    } catch (error) {
-      setSubmitMessage(error.message || 'Failed to submit job.')
-    } finally {
-      setSubmitting(false)
+    const job = {
+      id: jobs.length + 1,
+      title: newJob.title,
+      company: newJob.company,
+      location: newJob.location,
+      type: newJob.type,
+      experience: newJob.experience,
+      salary: 'Competitive',
+      description: newJob.responsibilities,
+      requirements: newJob.requirements,
+      applicationLink: newJob.applicationLink,
+      deadline: newJob.deadline,
+      posted: 'Just now',
+      postedByAlumni: true,
+      postedBy: { name: 'You', type: 'Alumni', batch: '2020' },
+      icon: 'fa-briefcase',
+      iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
     }
-  }
-
-  const handleDeleteJob = async (job) => {
-    if (!canManageJob(job)) return
-    if (!window.confirm(`Delete job "${job.title}"? This action cannot be undone.`)) return
-
-    try {
-      await jobsAPI.delete(job.id)
-      clearJobsCache()
-      setJobs((prev) => prev.filter((entry) => entry.id !== job.id))
-      if (showDetailModal?.id === job.id) {
-        setShowDetailModal(null)
-      }
-    } catch (error) {
-      window.alert(error.message || 'Failed to delete job.')
-    }
+    setJobs([job, ...jobs])
+    setNewJob({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
+    setShowPostModal(false)
   }
 
   const filteredJobs = jobs
@@ -353,7 +230,7 @@ function Jobs() {
             {jobs.map(job => job.jobImage && <img key={job.id} src={job.jobImage} alt="Job" className="h-12 w-12 rounded object-cover mr-2 inline-block" />)}
           </div>
           <button 
-            onClick={() => isLoggedIn ? openCreateModal() : navigateToLogin()}
+            onClick={() => isLoggedIn ? setShowPostModal(true) : navigateToLogin()}
             className="mt-4 md:mt-0 btn-primary flex items-center gap-2"
           >
             <i className="fas fa-plus"></i> Post a Job
@@ -416,8 +293,8 @@ function Jobs() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white">{editingJobId ? 'Edit Job Opportunity' : 'Post a Job Opportunity'}</h2>
-                <button onClick={() => { setShowPostModal(false); setEditingJobId(null); }} className="text-gray-400 hover:text-gray-600">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Post a Job Opportunity</h2>
+                <button onClick={() => setShowPostModal(false)} className="text-gray-400 hover:text-gray-600">
                   <i className="fas fa-times text-xl"></i>
                 </button>
               </div>
@@ -478,14 +355,9 @@ function Jobs() {
                   <input type="url" required value={newJob.applicationLink} onChange={(e) => setNewJob({...newJob, applicationLink: e.target.value})} className="input-professional" placeholder="https://example.com/apply" />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">URL where applicants can apply for this position</p>
                 </div>
-                {submitMessage && (
-                  <p className={`text-sm ${submitMessage.toLowerCase().includes('failed') ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                    {submitMessage}
-                  </p>
-                )}
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => { setShowPostModal(false); setEditingJobId(null); }} className="flex-1 btn-secondary">Cancel</button>
-                  <button type="submit" disabled={submitting} className="flex-1 btn-primary disabled:opacity-60">{submitting ? 'Saving...' : editingJobId ? 'Update Job' : 'Post Job'}</button>
+                  <button type="button" onClick={() => setShowPostModal(false)} className="flex-1 btn-secondary">Cancel</button>
+                  <button type="submit" className="flex-1 btn-primary">Post Job</button>
                 </div>
               </form>
             </div>
@@ -508,14 +380,6 @@ function Jobs() {
               <div className="mb-6">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">{showDetailModal.title}</h3>
                 <p className="text-gray-500 dark:text-gray-400 text-sm">{showDetailModal.company}</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${showDetailModal.role === 'admin' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
-                    {showDetailModal.role === 'admin' ? 'Admin Post' : 'User Post'}
-                  </span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${showDetailModal.status === 'approved' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : showDetailModal.status === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}`}>
-                    {showDetailModal.status || 'pending'}
-                  </span>
-                </div>
               </div>
 
               {/* Job Information */}
@@ -551,7 +415,7 @@ function Jobs() {
                 <ul className="space-y-2">
                   {(showDetailModal.requirements && Array.isArray(showDetailModal.requirements) ? showDetailModal.requirements : [showDetailModal.description || 'No requirements specified']).map((req, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <span className="text-teal-500 mt-1">*</span>
+                      <span className="text-teal-500 mt-1">ΓÇó</span>
                       {req}
                     </li>
                   ))}
@@ -566,7 +430,7 @@ function Jobs() {
                 <ul className="space-y-2">
                   {(showDetailModal.responsibilities && Array.isArray(showDetailModal.responsibilities) ? showDetailModal.responsibilities : ['See job description']).map((resp, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <span className="text-teal-500 mt-1">*</span>
+                      <span className="text-teal-500 mt-1">ΓÇó</span>
                       {resp}
                     </li>
                   ))}
@@ -588,12 +452,6 @@ function Jobs() {
               {/* Action Buttons */}
               <div className="flex gap-3">
                 <button onClick={() => setShowDetailModal(null)} className="flex-1 btn-secondary">Close</button>
-                {canManageJob(showDetailModal) && (
-                  <button onClick={() => { setShowDetailModal(null); openEditModal(showDetailModal); }} className="flex-1 btn-secondary">Edit</button>
-                )}
-                {canManageJob(showDetailModal) && (
-                  <button onClick={() => handleDeleteJob(showDetailModal)} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl font-medium transition-colors">Delete</button>
-                )}
                 <a 
                   href={showDetailModal.applicationLink || '#'}
                   target="_blank"
@@ -644,12 +502,6 @@ function Jobs() {
                   <span className="card-tag card-tag-teal">
                     <i className="fas fa-star text-[10px]"></i> {job.experience.split(' (')[0]}
                   </span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${job.role === 'admin' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
-                    {job.role === 'admin' ? 'Admin Post' : 'User Post'}
-                  </span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${job.status === 'approved' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : job.status === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}`}>
-                    {job.status || 'pending'}
-                  </span>
                 </div>
 
                 <p className="card-description line-clamp-3 mb-4">
@@ -675,22 +527,6 @@ function Jobs() {
                 >
                   View Details
                 </button>
-                {canManageJob(job) && (
-                  <button
-                    onClick={() => openEditModal(job)}
-                    className="card-btn-outline"
-                  >
-                    Edit
-                  </button>
-                )}
-                {canManageJob(job) && (
-                  <button
-                    onClick={() => handleDeleteJob(job)}
-                    className="card-btn-outline text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-900/40 dark:hover:bg-red-900/20"
-                  >
-                    Delete
-                  </button>
-                )}
                 <a 
                   href={job.applicationLink || '#'}
                   target="_blank"
