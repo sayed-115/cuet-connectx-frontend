@@ -184,14 +184,13 @@ body {
 .card-btn-outline {
   @apply flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl;
   @apply text-gray-700 dark:text-gray-300 text-sm font-medium text-center;
-  @apply hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-teal-400 dark:hover:border-teal-500;
-  @apply hover:text-teal-700 dark:hover:text-teal-300 transition-all duration-200;
+  @apply hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors;
 }
 
 .card-btn-primary {
   @apply flex-1 py-2.5 rounded-xl text-sm font-medium;
   @apply bg-teal-600 text-white hover:bg-teal-700;
-  @apply transition-all duration-200 flex items-center justify-center gap-2;
+  @apply transition-colors flex items-center justify-center gap-2;
 }
 
 /* Button Styles */

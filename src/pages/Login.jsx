@@ -1,27 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { authAPI } from '../services/api'
 import cuetLogo from '../assets/logos/CUET_Vector_Logo.svg.png'
-
-const resolveRedirectPath = (fromState) => {
-  if (!fromState) return '/'
-
-  if (typeof fromState === 'string') {
-    return fromState === '/login' || fromState === '/signup' ? '/' : fromState
-  }
-
-  const pathname = fromState.pathname || '/'
-  const search = fromState.search || ''
-  const hash = fromState.hash || ''
-  const target = `${pathname}${search}${hash}`
-
-  if (target === '/login' || target === '/signup') {
-    return '/'
-  }
-
-  return target
-}
 
 function Login() {
   const [studentId, setStudentId] = useState('')
@@ -35,15 +16,13 @@ function Login() {
   const [resendMessage, setResendMessage] = useState('')
   const { login, isLoggedIn } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
-  const redirectPath = resolveRedirectPath(location.state?.from)
 
   // Redirect if already logged in
   useEffect(() => {
     if (isLoggedIn) {
-      navigate(redirectPath, { replace: true })
+      navigate('/profile')
     }
-  }, [isLoggedIn, navigate, redirectPath])
+  }, [isLoggedIn, navigate])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -67,7 +46,7 @@ function Login() {
       setIsLoading(false)
       
       if (result.success) {
-        navigate(redirectPath, { replace: true })
+        navigate('/profile')
       } else {
         // Check if the error is about email verification
         if (result.needsVerification) {

@@ -1,5 +1,51 @@
 // API Service for CUET-ConnectX
-const API_URL = 'https://cuet-connectx-backend.onrender.com/api';
+const RENDER_API_URL = 'https://cuet-connectx-backend.onrender.com/api';
+const LOCAL_API_URL = 'http://localhost:5000/api';
+
+const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+const fallbackApiUrls = import.meta.env.DEV
+  ? [LOCAL_API_URL]
+  : [RENDER_API_URL];
+
+const apiUrls = Array.from(new Set([
+  configuredApiUrl,
+  ...fallbackApiUrls,
+].filter(Boolean)));
+
+if (apiUrls.length === 0) {
+  apiUrls.push(LOCAL_API_URL);
+}
+
+let activeApiUrl = apiUrls[0];
+
+function getApiUrlsInPriorityOrder() {
+  return [activeApiUrl, ...apiUrls.filter((url) => url !== activeApiUrl)];
+}
+
+async function fetchWithApiFallback(endpoint, config) {
+  let lastError = null;
+  const orderedApiUrls = getApiUrlsInPriorityOrder();
+
+  for (const baseUrl of orderedApiUrls) {
+    try {
+      const response = await fetch(`${baseUrl}${endpoint}`, config);
+
+      if (baseUrl !== activeApiUrl) {
+        console.warn(`[API] Switched API base URL to: ${baseUrl}`);
+        activeApiUrl = baseUrl;
+      }
+
+      return response;
+    } catch (err) {
+      lastError = err;
+      if (import.meta.env.DEV) {
+        console.warn(`[API] Network error on ${baseUrl}${endpoint}. Trying next candidate.`);
+      }
+    }
+  }
+
+  throw lastError || new Error('All API endpoints are unreachable.');
+}
 
 function normalizeFilterValue(value) {
   if (typeof value === 'string') return value.toLowerCase().trim();
@@ -18,8 +64,16 @@ function cleanQueryParams(params = {}) {
   return cleaned;
 }
 
-if (import.meta.env.PROD && /localhost/i.test(API_URL)) {
+if (!configuredApiUrl) {
+  console.warn(`[API] VITE_API_URL is not set. Using fallback API URLs: ${apiUrls.join(', ')}`);
+}
+
+if (import.meta.env.PROD && apiUrls.some((url) => /localhost/i.test(url))) {
   console.error('[API] Production build is pointing to localhost. Set VITE_API_URL to your deployed backend URL.');
+}
+
+if (import.meta.env.DEV) {
+  console.debug(`[API] Candidate API URLs: ${apiUrls.join(', ')}`);
 }
 
 // Custom error class for API errors
@@ -61,7 +115,7 @@ async function apiCall(endpoint, options = {}) {
 
   let response;
   try {
-    response = await fetch(`${API_URL}${endpoint}`, config);
+    response = await fetchWithApiFallback(endpoint, config);
   } catch (err) {
     throw new ApiError(
       'Unable to connect to the server. Please check your internet connection and try again.',
@@ -80,6 +134,7 @@ async function apiCall(endpoint, options = {}) {
     console.debug('[API] Response', {
       method,
       endpoint,
+      apiBaseUrl: activeApiUrl,
       status: response.status,
       ok: response.ok,
     });
@@ -165,7 +220,7 @@ export const usersAPI = {
     const token = localStorage.getItem('token');
     let response;
     try {
-      response = await fetch(`${API_URL}/users/profile/image`, {
+      response = await fetchWithApiFallback('/users/profile/image', {
         method: 'PUT',
         headers: { ...(token && { Authorization: `Bearer ${token}` }) },
         body: formData,
@@ -199,11 +254,6 @@ export const jobsAPI = {
     const queryString = new URLSearchParams(cleaned).toString();
     return apiCall(`/jobs${queryString ? '?' + queryString : ''}`);
   },
-  getMine: (params = {}) => {
-    const cleaned = cleanQueryParams(params);
-    const queryString = new URLSearchParams(cleaned).toString();
-    return apiCall(`/jobs/mine${queryString ? '?' + queryString : ''}`);
-  },
   getById: (id) => apiCall(`/jobs/${id}`),
   create: (data) => apiCall('/jobs', {
     method: 'POST',
@@ -227,11 +277,6 @@ export const scholarshipsAPI = {
     }
     const queryString = new URLSearchParams(cleaned).toString();
     return apiCall(`/scholarships${queryString ? '?' + queryString : ''}`);
-  },
-  getMine: (params = {}) => {
-    const cleaned = cleanQueryParams(params);
-    const queryString = new URLSearchParams(cleaned).toString();
-    return apiCall(`/scholarships/mine${queryString ? '?' + queryString : ''}`);
   },
   getById: (id) => apiCall(`/scholarships/${id}`),
   create: (data) => apiCall('/scholarships', {
@@ -285,7 +330,7 @@ async function uploadFile(endpoint, file, fieldName = 'image') {
   formData.append(fieldName, file);
   let response;
   try {
-    response = await fetch(`${API_URL}${endpoint}`, {
+    response = await fetchWithApiFallback(endpoint, {
       method: 'POST',
       headers: { ...(token && { Authorization: `Bearer ${token}` }) },
       body: formData,
@@ -327,49 +372,35 @@ export const adminAPI = {
   uploadPostImage: (file) => uploadFile('/admin/upload/post-image', file),
   // Jobs
   getJobs: (params = {}) => {
-    const cleaned = cleanQueryParams(params);
-    const queryString = new URLSearchParams(cleaned).toString();
-    return apiCall(`/jobs/all${queryString ? '?' + queryString : ''}`);
+    const queryString = new URLSearchParams(params).toString();
+    return apiCall(`/admin/jobs${queryString ? '?' + queryString : ''}`);
   },
-  createJob: (data) => apiCall('/jobs', {
+  createJob: (data) => apiCall('/admin/jobs', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  updateJob: (id, data) => apiCall(`/jobs/${id}`, {
+  updateJob: (id, data) => apiCall(`/admin/jobs/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
-  deleteJob: (id) => apiCall(`/jobs/${id}`, {
+  deleteJob: (id) => apiCall(`/admin/jobs/${id}`, {
     method: 'DELETE',
-  }),
-  approveJob: (id) => apiCall(`/jobs/${id}/approve`, {
-    method: 'PUT',
-  }),
-  rejectJob: (id) => apiCall(`/jobs/${id}/reject`, {
-    method: 'PUT',
   }),
   // Scholarships
   getScholarships: (params = {}) => {
-    const cleaned = cleanQueryParams(params);
-    const queryString = new URLSearchParams(cleaned).toString();
-    return apiCall(`/scholarships/all${queryString ? '?' + queryString : ''}`);
+    const queryString = new URLSearchParams(params).toString();
+    return apiCall(`/admin/scholarships${queryString ? '?' + queryString : ''}`);
   },
-  createScholarship: (data) => apiCall('/scholarships', {
+  createScholarship: (data) => apiCall('/admin/scholarships', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  updateScholarship: (id, data) => apiCall(`/scholarships/${id}`, {
+  updateScholarship: (id, data) => apiCall(`/admin/scholarships/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
-  deleteScholarship: (id) => apiCall(`/scholarships/${id}`, {
+  deleteScholarship: (id) => apiCall(`/admin/scholarships/${id}`, {
     method: 'DELETE',
-  }),
-  approveScholarship: (id) => apiCall(`/scholarships/${id}/approve`, {
-    method: 'PUT',
-  }),
-  rejectScholarship: (id) => apiCall(`/scholarships/${id}/reject`, {
-    method: 'PUT',
   }),
   // Community
   getPosts: (params = {}) => {

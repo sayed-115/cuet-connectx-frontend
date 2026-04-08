@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { jobsAPI } from '../services/api'
 import BaseCard from '../components/BaseCard'
 
@@ -14,79 +14,19 @@ const INITIAL_FILTERS = {
   role: '',
 }
 
-const normalizeOptionValue = (value) => String(value || '').trim().toLowerCase()
-
-const buildOptionsFromValues = (values) => {
-  const optionMap = new Map()
-
-  values.forEach((value) => {
-    const label = String(value || '').trim()
-    if (!label) return
-
-    const normalized = normalizeOptionValue(label)
-    if (!optionMap.has(normalized)) {
-      optionMap.set(normalized, label)
-    }
-  })
-
-  return Array.from(optionMap.entries())
-    .sort((a, b) => a[1].localeCompare(b[1]))
-    .map(([value, label]) => ({ value, label }))
-}
-
-const mergeDynamicOptions = (previousOptions, incomingOptions) => {
-  const optionMap = new Map(previousOptions.map((option) => [option.value, option.label]))
-
-  incomingOptions.forEach((option) => {
-    if (!optionMap.has(option.value)) {
-      optionMap.set(option.value, option.label)
-    }
-  })
-
-  return Array.from(optionMap.entries())
-    .sort((a, b) => a[1].localeCompare(b[1]))
-    .map(([value, label]) => ({ value, label }))
-}
-
 function Jobs() {
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [appliedJobs, setAppliedJobs] = useState([])
   const [savedJobs, setSavedJobs] = useState([])
-  const [jobTypeOptions, setJobTypeOptions] = useState([])
-  const [locationOptions, setLocationOptions] = useState([])
-  const [experienceOptions, setExperienceOptions] = useState([])
   const [showPostModal, setShowPostModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
-  const [editingJobId, setEditingJobId] = useState(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [refreshKey, setRefreshKey] = useState(0)
   const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const jobsCacheRef = useRef(new Map())
-  const { isLoggedIn, user } = useAuth()
+  const { isLoggedIn } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
-
-  const currentUserId = String(user?._id || user?.id || '')
-
-  const getPostRoleLabel = (role) => (String(role || '').toLowerCase() === 'admin' ? 'Admin Post' : 'User Post')
-
-  const getStatusMeta = (status) => {
-    const normalized = String(status || 'approved').toLowerCase()
-    if (normalized === 'pending') {
-      return { label: 'Pending', className: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' }
-    }
-    if (normalized === 'rejected') {
-      return { label: 'Rejected', className: 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300' }
-    }
-    return { label: 'Approved', className: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300' }
-  }
-
-  const navigateToLogin = () => {
-    navigate('/login', { state: { from: location } })
-  }
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -123,70 +63,34 @@ function Jobs() {
       try {
         setLoading(true)
         console.debug('[Jobs] API request params', activeFilters)
-        const [publicResponse, ownResponse] = await Promise.all([
-          jobsAPI.getAll(activeFilters),
-          isLoggedIn ? jobsAPI.getMine(activeFilters) : Promise.resolve({ success: true, jobs: [] }),
-        ])
-
-        if (publicResponse.success) {
-          const mergedJobs = [...(publicResponse.jobs || [])]
-          const knownIds = new Set(mergedJobs.map((job) => String(job._id)))
-
-          if (ownResponse?.success) {
-            (ownResponse.jobs || []).forEach((job) => {
-              const jobId = String(job._id)
-              if (!knownIds.has(jobId)) {
-                mergedJobs.push(job)
-                knownIds.add(jobId)
-              }
-            })
-          }
-
-          const formattedJobs = mergedJobs.map(job => {
-            const postRole = String(job.role || 'user').toLowerCase()
-            const postStatus = String(job.status || 'approved').toLowerCase()
-            const ownerId = String(job.createdBy || job.postedBy?._id || '')
-            const posterTypeRaw = String(job.postedBy?.role || job.postedBy?.userType || 'user').toLowerCase()
-
-            return {
-              id: job._id,
-              title: job.title,
-              company: job.company,
-              location: job.location || 'Remote',
-              type: job.type || 'Full-time',
-              posted: getTimeAgo(job.createdAt),
-              salary: job.salary ? `${job.salary.currency} ${job.salary.min?.toLocaleString()}-${job.salary.max?.toLocaleString()}` : 'Competitive',
-              experience: job.experience || 'Entry Level',
-              deadline: job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
-              role: postRole,
-              status: postStatus,
-              ownerId,
-              canEditOwn: Boolean(currentUserId) && ownerId === currentUserId,
-              canManage: Boolean(currentUserId) && (String(user?.role || '').toLowerCase() === 'admin' || ownerId === currentUserId),
-              postedByAlumni: posterTypeRaw === 'alumni',
-              postedBy: job.postedBy ? {
-                name: job.postedBy.fullName,
-                type: posterTypeRaw === 'admin' ? 'Admin' : posterTypeRaw === 'alumni' ? 'Alumni' : 'Student',
-                batch: job.postedBy.batch,
-                position: `${job.postedBy.currentPosition || ''} at ${job.postedBy.company || ''}`
-              } : { name: 'CUET Alumni', type: 'Alumni' },
-              requirements: job.requirements || [],
-              responsibilities: job.responsibilities || [],
-              skills: job.skills || [],
-              applicationLink: job.applyLink || '#',
-              icon: 'fa-briefcase',
-              iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
-            }
-          })
+        const response = await jobsAPI.getAll(activeFilters)
+        if (response.success) {
+          const formattedJobs = response.jobs.map(job => ({
+            id: job._id,
+            title: job.title,
+            company: job.company,
+            location: job.location || 'Remote',
+            type: job.type || 'Full-time',
+            posted: getTimeAgo(job.createdAt),
+            salary: job.salary ? `${job.salary.currency} ${job.salary.min?.toLocaleString()}-${job.salary.max?.toLocaleString()}` : 'Competitive',
+            experience: job.experience || 'Entry Level',
+            deadline: job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
+            postedByAlumni: (job.postedBy?.role || job.postedBy?.userType || '').toLowerCase() === 'alumni',
+            postedBy: job.postedBy ? { 
+              name: job.postedBy.fullName, 
+              type: 'Alumni', 
+              batch: job.postedBy.batch,
+              position: `${job.postedBy.currentPosition || ''} at ${job.postedBy.company || ''}`
+            } : { name: 'CUET Alumni', type: 'Alumni' },
+            requirements: job.requirements || [],
+            responsibilities: job.responsibilities || [],
+            skills: job.skills || [],
+            applicationLink: job.applyLink || '#',
+            icon: 'fa-briefcase',
+            iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
+          }))
 
           console.debug('[Jobs] response count', formattedJobs.length)
-          const nextJobTypeOptions = buildOptionsFromValues(formattedJobs.map(job => job.type))
-          const nextLocationOptions = buildOptionsFromValues(formattedJobs.map(job => job.location))
-          const nextExperienceOptions = buildOptionsFromValues(formattedJobs.map(job => job.experience))
-
-          setJobTypeOptions(prev => mergeDynamicOptions(prev, nextJobTypeOptions))
-          setLocationOptions(prev => mergeDynamicOptions(prev, nextLocationOptions))
-          setExperienceOptions(prev => mergeDynamicOptions(prev, nextExperienceOptions))
           jobsCacheRef.current.set(cacheKey, formattedJobs)
           setJobs(formattedJobs)
         }
@@ -197,7 +101,7 @@ function Jobs() {
       }
     }
     fetchJobs()
-  }, [activeFilters, currentUserId, isLoggedIn, refreshKey, user?.role])
+  }, [activeFilters])
 
   // Helper function to get time ago
   const getTimeAgo = (dateString) => {
@@ -212,13 +116,34 @@ function Jobs() {
     return `${Math.ceil(diffDays / 30)} months ago`
   }
 
-  const jobTypes = [{ label: 'All Job Types', value: '' }, ...jobTypeOptions]
-  const locations = [{ label: 'All Locations', value: '' }, ...locationOptions]
-  const experienceLevels = [{ label: 'Experience Level', value: '' }, ...experienceOptions]
+  const jobTypes = [
+    { label: 'All Job Types', value: '' },
+    { label: 'Full-time', value: 'full-time' },
+    { label: 'Part-time', value: 'part-time' },
+    { label: 'Contract', value: 'contract' },
+    { label: 'Internship', value: 'internship' },
+    { label: 'Remote', value: 'remote' },
+  ]
+  const locations = [
+    { label: 'All Locations', value: '' },
+    { label: 'Remote', value: 'remote' },
+    { label: 'Dhaka', value: 'dhaka' },
+    { label: 'Chittagong', value: 'chittagong' },
+    { label: 'San Francisco', value: 'san francisco' },
+    { label: 'New York', value: 'new york' },
+    { label: 'London', value: 'london' },
+  ]
+  const experienceLevels = [
+    { label: 'Experience Level', value: '' },
+    { label: 'Entry Level', value: 'entry level' },
+    { label: 'Intermediate', value: 'intermediate' },
+    { label: 'Senior Level', value: 'senior level' },
+    { label: 'Lead/Manager', value: 'lead/manager' },
+  ]
 
   const handleApply = (jobId) => {
     if (!isLoggedIn) {
-      navigateToLogin()
+      navigate('/login')
       return
     }
     setAppliedJobs([...appliedJobs, jobId])
@@ -226,7 +151,7 @@ function Jobs() {
 
   const handleSaveJob = (jobId) => {
     if (!isLoggedIn) {
-      navigateToLogin()
+      navigate('/login')
       return
     }
     if (savedJobs.includes(jobId)) {
@@ -236,105 +161,33 @@ function Jobs() {
     }
   }
 
-  const toTextList = (value) => String(value || '')
-    .split(/\r?\n|,/) 
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-
-  const resetJobForm = () => {
-    setNewJob({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
-    setEditingJobId(null)
-  }
-
-  const handlePostJob = async (e) => {
+  const handlePostJob = (e) => {
     e.preventDefault()
     if (!isLoggedIn) {
-      navigateToLogin()
+      navigate('/login')
       return
     }
-
-    const requirementsList = toTextList(newJob.requirements)
-    const responsibilitiesList = toTextList(newJob.responsibilities)
-
-    const payload = {
+    const job = {
+      id: jobs.length + 1,
       title: newJob.title,
       company: newJob.company,
       location: newJob.location,
       type: newJob.type,
       experience: newJob.experience,
-      deadline: newJob.deadline,
-      requirements: requirementsList,
-      responsibilities: responsibilitiesList,
-      description: responsibilitiesList.join('. ') || requirementsList.join('. ') || `${newJob.title} at ${newJob.company}`,
+      salary: 'Competitive',
+      description: newJob.responsibilities,
+      requirements: newJob.requirements,
       applicationLink: newJob.applicationLink,
-      applyLink: newJob.applicationLink,
+      deadline: newJob.deadline,
+      posted: 'Just now',
+      postedByAlumni: true,
+      postedBy: { name: 'You', type: 'Alumni', batch: '2020' },
+      icon: 'fa-briefcase',
+      iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
     }
-
-    try {
-      setSubmitting(true)
-
-      const response = editingJobId
-        ? await jobsAPI.update(editingJobId, payload)
-        : await jobsAPI.create(payload)
-
-      jobsCacheRef.current.clear()
-      setRefreshKey(prev => prev + 1)
-      setShowPostModal(false)
-      setShowDetailModal(null)
-      resetJobForm()
-
-      const updatedStatus = String(response?.job?.status || 'approved').toLowerCase()
-      if (!editingJobId && updatedStatus === 'pending') {
-        window.alert('Job submitted successfully. It is pending admin approval.')
-      } else if (editingJobId && String(user?.role || '').toLowerCase() !== 'admin') {
-        window.alert('Job updated successfully and sent for re-approval.')
-      }
-    } catch (error) {
-      window.alert(error.message || 'Failed to save job. Please try again.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const openEditJob = (job) => {
-    if (!job?.canEditOwn) return
-
-    const parsedDeadline = job.deadline && job.deadline !== 'Open' ? new Date(job.deadline) : null
-    const safeDeadline = parsedDeadline && !Number.isNaN(parsedDeadline.getTime())
-      ? parsedDeadline.toISOString().split('T')[0]
-      : ''
-
-    setEditingJobId(job.id)
-    setNewJob({
-      title: job.title || '',
-      company: job.company || '',
-      location: job.location || '',
-      type: job.type || '',
-      experience: job.experience || '',
-      deadline: safeDeadline,
-      requirements: Array.isArray(job.requirements) ? job.requirements.join('\n') : '',
-      responsibilities: Array.isArray(job.responsibilities) ? job.responsibilities.join('\n') : '',
-      applicationLink: job.applicationLink || '',
-    })
-    setShowDetailModal(null)
-    setShowPostModal(true)
-  }
-
-  const handleDeleteJob = async (job) => {
-    if (!job?.canManage) return
-
-    const confirmed = window.confirm(`Delete job "${job.title}"? This cannot be undone.`)
-    if (!confirmed) return
-
-    try {
-      await jobsAPI.delete(job.id)
-      jobsCacheRef.current.clear()
-      setRefreshKey(prev => prev + 1)
-      setShowDetailModal(null)
-      window.alert('Job deleted successfully.')
-    } catch (error) {
-      window.alert(error.message || 'Failed to delete job.')
-    }
+    setJobs([job, ...jobs])
+    setNewJob({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
+    setShowPostModal(false)
   }
 
   const filteredJobs = jobs
@@ -349,14 +202,7 @@ function Jobs() {
             {jobs.map(job => job.jobImage && <img key={job.id} src={job.jobImage} alt="Job" className="h-12 w-12 rounded object-cover mr-2 inline-block" />)}
           </div>
           <button 
-            onClick={() => {
-              if (!isLoggedIn) {
-                navigateToLogin()
-                return
-              }
-              resetJobForm()
-              setShowPostModal(true)
-            }}
+            onClick={() => isLoggedIn ? setShowPostModal(true) : navigate('/login')}
             className="mt-4 md:mt-0 btn-primary flex items-center gap-2"
           >
             <i className="fas fa-plus"></i> Post a Job
@@ -419,8 +265,8 @@ function Jobs() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white">{editingJobId ? 'Edit Job Opportunity' : 'Post a Job Opportunity'}</h2>
-                <button onClick={() => { setShowPostModal(false); resetJobForm() }} className="text-gray-400 hover:text-gray-600">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Post a Job Opportunity</h2>
+                <button onClick={() => setShowPostModal(false)} className="text-gray-400 hover:text-gray-600">
                   <i className="fas fa-times text-xl"></i>
                 </button>
               </div>
@@ -482,10 +328,8 @@ function Jobs() {
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">URL where applicants can apply for this position</p>
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => { setShowPostModal(false); resetJobForm() }} className="flex-1 btn-secondary">Cancel</button>
-                  <button type="submit" disabled={submitting} className="flex-1 btn-primary disabled:opacity-60">
-                    {submitting ? 'Saving...' : editingJobId ? 'Update Job' : 'Post Job'}
-                  </button>
+                  <button type="button" onClick={() => setShowPostModal(false)} className="flex-1 btn-secondary">Cancel</button>
+                  <button type="submit" className="flex-1 btn-primary">Post Job</button>
                 </div>
               </form>
             </div>
@@ -508,14 +352,6 @@ function Jobs() {
               <div className="mb-6">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">{showDetailModal.title}</h3>
                 <p className="text-gray-500 dark:text-gray-400 text-sm">{showDetailModal.company}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-3 py-1 text-xs font-semibold">
-                    {getPostRoleLabel(showDetailModal.role)}
-                  </span>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusMeta(showDetailModal.status).className}`}>
-                    {getStatusMeta(showDetailModal.status).label}
-                  </span>
-                </div>
               </div>
 
               {/* Job Information */}
@@ -586,13 +422,7 @@ function Jobs() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap gap-3">
-                {showDetailModal.canEditOwn && (
-                  <button onClick={() => openEditJob(showDetailModal)} className="btn-secondary">Edit</button>
-                )}
-                {showDetailModal.canManage && (
-                  <button onClick={() => handleDeleteJob(showDetailModal)} className="px-4 py-2.5 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-900/30">Delete</button>
-                )}
+              <div className="flex gap-3">
                 <button onClick={() => setShowDetailModal(null)} className="flex-1 btn-secondary">Close</button>
                 <a 
                   href={showDetailModal.applicationLink || '#'}
@@ -643,15 +473,6 @@ function Jobs() {
                   </span>
                   <span className="card-tag card-tag-teal">
                     <i className="fas fa-star text-[10px]"></i> {job.experience.split(' (')[0]}
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2.5 py-0.5 text-xs font-semibold">
-                    {getPostRoleLabel(job.role)}
-                  </span>
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusMeta(job.status).className}`}>
-                    {getStatusMeta(job.status).label}
                   </span>
                 </div>
 

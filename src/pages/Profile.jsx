@@ -1,11 +1,11 @@
 import { useAuth } from '../context/AuthContext'
 import { useNavigate, Link } from 'react-router-dom'
 import { useEffect, useState, useCallback } from 'react'
+import coverDefault from '../assets/images/cover.png'
 import { usersAPI } from '../services/api'
-import { CDN_IMAGES } from '../config/cdnImages'
 
 function Profile() {
-  const { user, unfollowUser, updateUser, logout } = useAuth()
+  const { user, isLoggedIn, unfollowUser, updateUser, logout } = useAuth()
   const navigate = useNavigate()
 
   // UI states
@@ -37,6 +37,11 @@ function Profile() {
   const [changingPassword, setChangingPassword] = useState(false)
   const [passwordErrors, setPasswordErrors] = useState({})
 
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!isLoggedIn) navigate('/login')
+  }, [isLoggedIn, navigate])
+
   // Fetch profile data from backend
   const fetchProfile = useCallback(async () => {
     try {
@@ -56,8 +61,8 @@ function Profile() {
   }, [])
 
   useEffect(() => {
-    fetchProfile()
-  }, [fetchProfile])
+    if (isLoggedIn) fetchProfile()
+  }, [isLoggedIn, fetchProfile])
 
   // Show toast helper
   const showToast = (message, type = 'success') => {
@@ -243,7 +248,6 @@ function Profile() {
   if (!user) return null
 
   const pd = profileData || {}
-  const effectiveCoverImage = coverImage || CDN_IMAGES.coverDefault
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900 min-h-screen relative">
@@ -287,7 +291,7 @@ function Profile() {
       {/* Cover */}
       <div
         className="h-48 bg-gradient-to-r from-teal-800 via-teal-600 to-teal-800 relative overflow-hidden"
-        style={{ backgroundImage: `url(${effectiveCoverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+        style={coverImage ? { backgroundImage: `url(${coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
       >
         {!coverImage && !isUploadingCover && (
           <div className="absolute inset-0 opacity-20">

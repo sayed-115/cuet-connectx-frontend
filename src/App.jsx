@@ -17,7 +17,6 @@ import Terms from './pages/Terms'
 import Cookies from './pages/Cookies'
 import AdminPortal from './pages/AdminPortal'
 import AdminRoute from './components/admin/AdminRoute'
-import ProtectedRoute from './components/ProtectedRoute'
 import VerifyEmail from './pages/VerifyEmail'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
@@ -54,22 +53,8 @@ function App() {
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route
-            path="/profile"
-            element={(
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            )}
-          />
-          <Route
-            path="/member/:id"
-            element={(
-              <ProtectedRoute>
-                <MemberProfile />
-              </ProtectedRoute>
-            )}
-          />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/member/:id" element={<MemberProfile />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/cookies" element={<Cookies />} />

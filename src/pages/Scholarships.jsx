@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { scholarshipsAPI } from '../services/api'
 import BaseCard from '../components/BaseCard'
 
@@ -14,118 +14,12 @@ const INITIAL_FILTERS = {
   role: '',
 }
 
-const normalizeOptionValue = (value) => String(value || '').trim().toLowerCase()
-
-const buildOptionsFromValues = (values) => {
-  const optionMap = new Map()
-
-  values.forEach((value) => {
-    const label = String(value || '').trim()
-    if (!label) return
-
-    const normalized = normalizeOptionValue(label)
-    if (!optionMap.has(normalized)) {
-      optionMap.set(normalized, label)
-    }
-  })
-
-  return Array.from(optionMap.entries())
-    .sort((a, b) => a[1].localeCompare(b[1]))
-    .map(([value, label]) => ({ value, label }))
-}
-
-const mergeDynamicOptions = (previousOptions, incomingOptions) => {
-  const optionMap = new Map(previousOptions.map((option) => [option.value, option.label]))
-
-  incomingOptions.forEach((option) => {
-    if (!optionMap.has(option.value)) {
-      optionMap.set(option.value, option.label)
-    }
-  })
-
-  return Array.from(optionMap.entries())
-    .sort((a, b) => a[1].localeCompare(b[1]))
-    .map(([value, label]) => ({ value, label }))
-}
-
-const getScholarshipLevels = (scholarship) => {
-  const searchableText = `${scholarship.title || ''} ${scholarship.description || ''} ${scholarship.eligibility || ''}`.toLowerCase()
-  const levelLabels = []
-
-  if (/\b(undergraduate|bachelor|bsc|bs|honou?rs|honors)\b/.test(searchableText)) {
-    levelLabels.push('Undergraduate')
-  }
-  if (/\b(master|msc|ms)\b/.test(searchableText)) {
-    levelLabels.push("Master's")
-  }
-  if (/\b(phd|doctorate|doctoral)\b/.test(searchableText)) {
-    levelLabels.push('PhD')
-  }
-  if (/\b(postdoc|post-doc)\b/.test(searchableText)) {
-    levelLabels.push('Postdoc')
-  }
-
-  return levelLabels.length > 0 ? levelLabels : ["Master's"]
-}
-
-const getScholarshipLocation = (scholarship) => {
-  const searchableText = `${scholarship.title || ''} ${scholarship.description || ''} ${scholarship.eligibility || ''} ${scholarship.organization || ''}`.toLowerCase()
-
-  if (/\b(bangladesh|dhaka|chittagong|cuet)\b/.test(searchableText)) {
-    return 'Bangladesh'
-  }
-
-  if (/\b(usa|united states)\b/.test(searchableText)) {
-    return 'USA'
-  }
-
-  if (/\b(uk|united kingdom|england)\b/.test(searchableText)) {
-    return 'UK'
-  }
-
-  if (/\beurope\b/.test(searchableText)) {
-    return 'Europe'
-  }
-
-  if (/\basia\b/.test(searchableText)) {
-    return 'Asia'
-  }
-
-  if (/\baustralia\b/.test(searchableText)) {
-    return 'Australia'
-  }
-
-  return 'International'
-}
-
-const getScholarshipFundingType = (scholarship) => {
-  const searchableText = `${scholarship.amount || ''} ${scholarship.description || ''}`.toLowerCase()
-
-  if (searchableText.includes('full')) {
-    return 'Full'
-  }
-  if (searchableText.includes('tuition')) {
-    return 'Tuition Only'
-  }
-  if (searchableText.includes('stipend')) {
-    return 'Stipend'
-  }
-
-  return 'Partial'
-}
-
 function Scholarships() {
   const [savedScholarships, setSavedScholarships] = useState([])
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [levelOptions, setLevelOptions] = useState([])
-  const [locationOptions, setLocationOptions] = useState([])
-  const [fundingTypeOptions, setFundingTypeOptions] = useState([])
   const [showPostModal, setShowPostModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
-  const [editingScholarshipId, setEditingScholarshipId] = useState(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [refreshKey, setRefreshKey] = useState(0)
   const [newScholarship, setNewScholarship] = useState({ 
     name: '', 
     level: '', 
@@ -144,26 +38,6 @@ function Scholarships() {
   const scholarshipsCacheRef = useRef(new Map())
   const { isLoggedIn, user } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
-
-  const currentUserId = String(user?._id || user?.id || '')
-
-  const getPostRoleLabel = (role) => (String(role || '').toLowerCase() === 'admin' ? 'Admin Post' : 'User Post')
-
-  const getStatusMeta = (status) => {
-    const normalized = String(status || 'approved').toLowerCase()
-    if (normalized === 'pending') {
-      return { label: 'Pending', className: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' }
-    }
-    if (normalized === 'rejected') {
-      return { label: 'Rejected', className: 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300' }
-    }
-    return { label: 'Approved', className: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300' }
-  }
-
-  const navigateToLogin = () => {
-    navigate('/login', { state: { from: location } })
-  }
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -200,38 +74,26 @@ function Scholarships() {
       try {
         setLoading(true)
         console.debug('[Scholarships] API request params', activeFilters)
-        const [publicResponse, ownResponse] = await Promise.all([
-          scholarshipsAPI.getAll(activeFilters),
-          isLoggedIn ? scholarshipsAPI.getMine(activeFilters) : Promise.resolve({ success: true, scholarships: [] }),
-        ])
-
-        if (publicResponse.success) {
-          const mergedScholarships = [...(publicResponse.scholarships || [])]
-          const knownIds = new Set(mergedScholarships.map((entry) => String(entry._id)))
-
-          if (ownResponse?.success) {
-            (ownResponse.scholarships || []).forEach((entry) => {
-              const scholarshipId = String(entry._id)
-              if (!knownIds.has(scholarshipId)) {
-                mergedScholarships.push(entry)
-                knownIds.add(scholarshipId)
-              }
-            })
-          }
-
-          const formattedScholarships = mergedScholarships.map((s) => {
-            const detectedLevels = getScholarshipLevels(s)
-            const postRole = String(s.role || 'user').toLowerCase()
-            const postStatus = String(s.status || 'approved').toLowerCase()
-            const ownerId = String(s.createdBy || s.postedBy?._id || '')
-
-            return {
-            levels: detectedLevels,
+        const response = await scholarshipsAPI.getAll(activeFilters)
+        if (response.success) {
+          const formattedScholarships = response.scholarships.map(s => ({
             id: s._id,
             name: s.title,
-            level: detectedLevels.join(', '),
-            location: getScholarshipLocation(s),
-            fundingType: getScholarshipFundingType(s),
+            level: s.description?.toLowerCase().includes('undergraduate')
+              ? 'Undergraduate'
+              : s.description?.toLowerCase().includes('postdoc')
+                ? 'Postdoc'
+                : s.description?.toLowerCase().includes('phd')
+                  ? 'PhD'
+                  : "Master's, PhD",
+            location: s.description?.toLowerCase().includes('bangladesh') ? 'Bangladesh' : 'International',
+            fundingType: s.amount?.toLowerCase().includes('full')
+              ? 'Full'
+              : s.amount?.toLowerCase().includes('tuition')
+                ? 'Tuition Only'
+                : s.amount?.toLowerCase().includes('stipend')
+                  ? 'Stipend'
+                  : 'Partial',
             duration: '1-4 years',
             fundingDetails: s.amount || 'Varies',
             deadline: s.deadline ? new Date(s.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
@@ -240,28 +102,15 @@ function Scholarships() {
             benefits: s.amount || 'Full funding available',
             description: s.description || s.title,
             organization: s.organization,
-            role: postRole,
-            status: postStatus,
-            ownerId,
-            canEditOwn: Boolean(currentUserId) && ownerId === currentUserId,
-            canManage: Boolean(currentUserId) && (String(user?.role || '').toLowerCase() === 'admin' || ownerId === currentUserId),
             postedBy: s.postedBy
               ? {
                 name: s.postedBy.fullName,
                 type: (s.postedBy.role || s.postedBy.userType || 'Alumni').replace(/^./, (c) => c.toUpperCase())
               }
               : { name: 'CUET Alumni', type: 'Alumni' }
-            }
-          })
+          }))
 
           console.debug('[Scholarships] response count', formattedScholarships.length)
-          const nextLevelOptions = buildOptionsFromValues(formattedScholarships.flatMap((scholarship) => scholarship.levels || []))
-          const nextLocationOptions = buildOptionsFromValues(formattedScholarships.map((scholarship) => scholarship.location))
-          const nextFundingTypeOptions = buildOptionsFromValues(formattedScholarships.map((scholarship) => scholarship.fundingType))
-
-          setLevelOptions(prev => mergeDynamicOptions(prev, nextLevelOptions))
-          setLocationOptions(prev => mergeDynamicOptions(prev, nextLocationOptions))
-          setFundingTypeOptions(prev => mergeDynamicOptions(prev, nextFundingTypeOptions))
           scholarshipsCacheRef.current.set(cacheKey, formattedScholarships)
           setScholarships(formattedScholarships)
         }
@@ -272,15 +121,35 @@ function Scholarships() {
       }
     }
     fetchScholarships()
-  }, [activeFilters, currentUserId, isLoggedIn, refreshKey, user?.role])
+  }, [activeFilters])
 
-  const levels = [{ label: 'All Levels', value: '' }, ...levelOptions]
-  const locations = [{ label: 'All Locations', value: '' }, ...locationOptions]
-  const fundingTypes = [{ label: 'Funding Type', value: '' }, ...fundingTypeOptions]
+  const levels = [
+    { label: 'All Levels', value: '' },
+    { label: 'Undergraduate', value: 'undergraduate' },
+    { label: "Master's", value: 'masters' },
+    { label: 'PhD', value: 'phd' },
+    { label: 'Postdoc', value: 'postdoc' },
+  ]
+  const locations = [
+    { label: 'All Locations', value: '' },
+    { label: 'Bangladesh', value: 'bangladesh' },
+    { label: 'USA', value: 'usa' },
+    { label: 'UK', value: 'uk' },
+    { label: 'Europe', value: 'europe' },
+    { label: 'Asia', value: 'asia' },
+    { label: 'Australia', value: 'australia' },
+  ]
+  const fundingTypes = [
+    { label: 'Funding Type', value: '' },
+    { label: 'Full', value: 'full' },
+    { label: 'Partial', value: 'partial' },
+    { label: 'Tuition Only', value: 'tuition only' },
+    { label: 'Stipend', value: 'stipend' },
+  ]
 
   const handleSaveScholarship = (scholarshipId) => {
     if (!isLoggedIn) {
-      navigateToLogin()
+      navigate('/login')
       return
     }
     if (savedScholarships.includes(scholarshipId)) {
@@ -290,117 +159,32 @@ function Scholarships() {
     }
   }
 
-  const resetScholarshipForm = () => {
-    setNewScholarship({
-      name: '',
-      level: '',
-      location: '',
-      fundingType: '',
+  const handlePostScholarship = (e) => {
+    e.preventDefault()
+    if (!isLoggedIn) {
+      navigate('/login')
+      return
+    }
+    const scholarship = {
+      id: scholarships.length + 1,
+      ...newScholarship,
+      postedBy: { name: user?.fullName || 'You', type: 'Alumni' }
+    }
+    setScholarships([scholarship, ...scholarships])
+    setNewScholarship({ 
+      name: '', 
+      level: '', 
+      location: '', 
+      fundingType: '', 
       duration: '',
-      fundingDetails: '',
-      deadline: '',
+      fundingDetails: '', 
+      deadline: '', 
       link: '',
       eligibility: '',
       benefits: '',
-      description: ''
+      description: '' 
     })
-    setEditingScholarshipId(null)
-  }
-
-  const handlePostScholarship = async (e) => {
-    e.preventDefault()
-    if (!isLoggedIn) {
-      navigateToLogin()
-      return
-    }
-
-    const payload = {
-      scholarshipName: newScholarship.name,
-      title: newScholarship.name,
-      level: newScholarship.level,
-      location: newScholarship.location,
-      fundingType: newScholarship.fundingType,
-      duration: newScholarship.duration,
-      fundingDetails: newScholarship.fundingDetails,
-      amount: newScholarship.fundingDetails,
-      deadline: newScholarship.deadline,
-      scholarshipLink: newScholarship.link,
-      link: newScholarship.link,
-      eligibilityCriteria: newScholarship.eligibility,
-      eligibility: newScholarship.eligibility,
-      benefits: newScholarship.benefits,
-      description: newScholarship.description,
-      organization: newScholarship.organization || 'CUET Community',
-    }
-
-    try {
-      setSubmitting(true)
-
-      const response = editingScholarshipId
-        ? await scholarshipsAPI.update(editingScholarshipId, payload)
-        : await scholarshipsAPI.create(payload)
-
-      scholarshipsCacheRef.current.clear()
-      setRefreshKey(prev => prev + 1)
-      setShowPostModal(false)
-      setShowDetailModal(null)
-      resetScholarshipForm()
-
-      const updatedStatus = String(response?.scholarship?.status || 'approved').toLowerCase()
-      if (!editingScholarshipId && updatedStatus === 'pending') {
-        window.alert('Scholarship submitted successfully. It is pending admin approval.')
-      } else if (editingScholarshipId && String(user?.role || '').toLowerCase() !== 'admin') {
-        window.alert('Scholarship updated successfully and sent for re-approval.')
-      }
-    } catch (error) {
-      window.alert(error.message || 'Failed to save scholarship. Please try again.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const openEditScholarship = (scholarship) => {
-    if (!scholarship?.canEditOwn) return
-
-    const parsedDeadline = scholarship.deadline && scholarship.deadline !== 'Open' ? new Date(scholarship.deadline) : null
-    const safeDeadline = parsedDeadline && !Number.isNaN(parsedDeadline.getTime())
-      ? parsedDeadline.toISOString().split('T')[0]
-      : ''
-
-    setEditingScholarshipId(scholarship.id)
-    setNewScholarship({
-      name: scholarship.name || '',
-      level: scholarship.level || '',
-      location: scholarship.location || '',
-      fundingType: scholarship.fundingType || '',
-      duration: scholarship.duration || '',
-      fundingDetails: scholarship.fundingDetails || '',
-      deadline: safeDeadline,
-      link: scholarship.link || '',
-      eligibility: scholarship.eligibility || '',
-      benefits: scholarship.benefits || '',
-      description: scholarship.description || '',
-      organization: scholarship.organization || ''
-    })
-    setShowDetailModal(null)
-    setShowPostModal(true)
-  }
-
-  const handleDeleteScholarship = async (scholarship) => {
-    if (!scholarship?.canManage) return
-
-    const confirmed = window.confirm(`Delete scholarship "${scholarship.name}"? This cannot be undone.`)
-    if (!confirmed) return
-
-    try {
-      await scholarshipsAPI.delete(scholarship.id)
-      scholarshipsCacheRef.current.clear()
-      setRefreshKey(prev => prev + 1)
-      setShowDetailModal(null)
-      window.alert('Scholarship deleted successfully.')
-    } catch (error) {
-      window.alert(error.message || 'Failed to delete scholarship.')
-    }
+    setShowPostModal(false)
   }
 
   const filteredScholarships = scholarships
@@ -415,14 +199,7 @@ function Scholarships() {
             {scholarships.map(s => s.scholarshipImage && <img key={s.id} src={s.scholarshipImage} alt="Scholarship" className="h-12 w-12 rounded object-cover mr-2 inline-block" />)}
           </div>
           <button 
-            onClick={() => {
-              if (!isLoggedIn) {
-                navigateToLogin()
-                return
-              }
-              resetScholarshipForm()
-              setShowPostModal(true)
-            }}
+            onClick={() => isLoggedIn ? setShowPostModal(true) : navigate('/login')}
             className="mt-4 md:mt-0 btn-primary flex items-center gap-2"
           >
             <i className="fas fa-plus"></i> Post a Scholarship
@@ -485,8 +262,8 @@ function Scholarships() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white">{editingScholarshipId ? 'Edit Scholarship Opportunity' : 'Post a Scholarship Opportunity'}</h2>
-                <button onClick={() => { setShowPostModal(false); resetScholarshipForm() }} className="text-gray-400 hover:text-gray-600">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Post a Scholarship Opportunity</h2>
+                <button onClick={() => setShowPostModal(false)} className="text-gray-400 hover:text-gray-600">
                   <i className="fas fa-times text-xl"></i>
                 </button>
               </div>
@@ -555,10 +332,8 @@ function Scholarships() {
                   <textarea rows={3} required value={newScholarship.description} onChange={(e) => setNewScholarship({...newScholarship, description: e.target.value})} className="input-professional" placeholder="Provide additional details about the scholarship"></textarea>
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => { setShowPostModal(false); resetScholarshipForm() }} className="flex-1 btn-secondary">Cancel</button>
-                  <button type="submit" disabled={submitting} className="flex-1 btn-primary disabled:opacity-60">
-                    {submitting ? 'Saving...' : editingScholarshipId ? 'Update Scholarship' : 'Post Scholarship'}
-                  </button>
+                  <button type="button" onClick={() => setShowPostModal(false)} className="flex-1 btn-secondary">Cancel</button>
+                  <button type="submit" className="flex-1 btn-primary">Post Scholarship</button>
                 </div>
               </form>
             </div>
@@ -579,14 +354,6 @@ function Scholarships() {
                     {showDetailModal.fundingType === 'Full' ? 'Fully Funded' : 'Partially Funded'}
                   </span>
                   <h2 className="text-xl font-bold text-gray-800 dark:text-white">{showDetailModal.name}</h2>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-3 py-1 text-xs font-semibold">
-                      {getPostRoleLabel(showDetailModal.role)}
-                    </span>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusMeta(showDetailModal.status).className}`}>
-                      {getStatusMeta(showDetailModal.status).label}
-                    </span>
-                  </div>
                 </div>
                 <button onClick={() => setShowDetailModal(null)} className="text-gray-400 hover:text-gray-600">
                   <i className="fas fa-times text-xl"></i>
@@ -638,13 +405,7 @@ function Scholarships() {
                     <i className="fas fa-user-circle text-teal-500"></i>
                     Posted by <span className="font-medium text-gray-700 dark:text-gray-300">{showDetailModal.postedBy.name}</span>
                   </p>
-                  <div className="flex flex-wrap gap-3">
-                    {showDetailModal.canEditOwn && (
-                      <button onClick={() => openEditScholarship(showDetailModal)} className="btn-secondary">Edit</button>
-                    )}
-                    {showDetailModal.canManage && (
-                      <button onClick={() => handleDeleteScholarship(showDetailModal)} className="px-4 py-2.5 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-900/30">Delete</button>
-                    )}
+                  <div className="flex gap-3">
                     <button onClick={() => setShowDetailModal(null)} className="flex-1 btn-secondary">Close</button>
                     <a 
                       href={showDetailModal.link} 
@@ -696,15 +457,6 @@ function Scholarships() {
                   </span>
                   <span className="card-tag card-tag-amber">
                     <i className="fas fa-map-marker-alt text-[10px]"></i> {scholarship.location}
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2.5 py-0.5 text-xs font-semibold">
-                    {getPostRoleLabel(scholarship.role)}
-                  </span>
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusMeta(scholarship.status).className}`}>
-                    {getStatusMeta(scholarship.status).label}
                   </span>
                 </div>
 

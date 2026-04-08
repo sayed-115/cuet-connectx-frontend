@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { adminAPI, usersAPI } from '../services/api';
-import { CDN_IMAGES } from '../config/cdnImages';
 import Pagination from '../components/admin/Pagination';
 import ConfirmModal from '../components/admin/ConfirmModal';
 import Toast from '../components/admin/Toast';
@@ -36,7 +35,6 @@ function AdminPortal() {
   const [tableLoading, setTableLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [role, setRole] = useState('');
-  const [roleOptions, setRoleOptions] = useState([]);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0, limit: 10 });
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -140,12 +138,6 @@ function AdminPortal() {
   const adminInitials = user?.fullName
     ? user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
     : 'AD';
-  const profileCoverImage = profileData?.coverImage || user?.coverImage || CDN_IMAGES.coverDefault;
-
-  const formatRoleLabel = (roleValue) =>
-    String(roleValue || '')
-      .replace(/[_-]+/g, ' ')
-      .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
   // ── API calls ────────────────────────────────────────────
   const loadDashboard = async () => {
@@ -167,18 +159,7 @@ function AdminPortal() {
         search: nextSearch,
         role: nextRole,
       });
-      const nextUsers = response.data.users || [];
-      setUsers(nextUsers);
-
-      const nextRoleOptions = Array.from(
-        new Set(
-          nextUsers
-            .map((entry) => String(entry.role || entry.userType || '').toLowerCase().trim())
-            .filter(Boolean)
-        )
-      ).sort();
-
-      setRoleOptions((prev) => Array.from(new Set([...prev, ...nextRoleOptions])).sort());
+      setUsers(response.data.users || []);
       setPagination(response.data.pagination || { page: 1, pages: 1, total: 0, limit: 10 });
     } catch (error) {
       showToast(error.message || 'Failed to load users', 'error');
@@ -595,9 +576,9 @@ function AdminPortal() {
                       className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                     >
                       <option value="">All Roles</option>
-                      {roleOptions.map((roleOption) => (
-                        <option key={roleOption} value={roleOption}>{formatRoleLabel(roleOption)}</option>
-                      ))}
+                      <option value="student">Student</option>
+                      <option value="alumni">Alumni</option>
+                      <option value="admin">Admin</option>
                     </select>
                   </div>
                 </div>
@@ -637,24 +618,7 @@ function AdminPortal() {
                   <>
                     {/* Profile Header Card */}
                     <div className="rounded-xl bg-white shadow-sm dark:bg-gray-800">
-                      <div className="relative h-32 overflow-hidden rounded-t-xl">
-                        {profileCoverImage ? (
-                          <>
-                            <img
-                              src={profileCoverImage}
-                              alt=""
-                              className="h-full w-full object-cover"
-                              onError={(event) => {
-                                event.currentTarget.onerror = null;
-                                event.currentTarget.src = CDN_IMAGES.coverDefault;
-                              }}
-                            />
-                            <div className="absolute inset-0 bg-black/15" />
-                          </>
-                        ) : (
-                          <div className="h-full w-full bg-linear-to-r from-teal-500 to-teal-700" />
-                        )}
-                      </div>
+                      <div className="h-32 rounded-t-xl bg-linear-to-r from-teal-500 to-teal-700"></div>
                       <div className="relative px-6 pb-6">
                         <div className="-mt-12 flex flex-col items-start gap-4 sm:flex-row sm:items-end">
                           {(profileData?.profileImage || user?.profileImage) ? (

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { usersAPI } from '../services/api'
 import BaseCard from '../components/BaseCard'
 
@@ -18,18 +18,11 @@ function Community() {
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [members, setMembers] = useState([])
-  const [memberTypeOptions, setMemberTypeOptions] = useState([])
-  const [departmentOptions, setDepartmentOptions] = useState([])
   const [batchOptions, setBatchOptions] = useState([])
   const [loading, setLoading] = useState(true)
   const membersCacheRef = useRef(new Map())
   const { isLoggedIn, user, isFollowingMember, followUser, unfollowUser } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
-
-  const navigateToLogin = () => {
-    navigate('/login', { state: { from: location } })
-  }
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -91,7 +84,7 @@ function Community() {
               name: u.fullName,
               studentId: u.studentId,
               batch: u.batch || (studentIdText.length >= 2 ? `20${studentIdText.substring(0, 2)}` : 'Unknown'),
-              department: u.departmentShort || 'Unknown',
+              department: u.departmentShort || 'CSE',
               profileImage: u.profileImage || null,
               initials: u.fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
               type: (u.role || u.userType) === 'alumni' ? 'Alumni' : 'Student',
@@ -102,45 +95,8 @@ function Community() {
               }
             })
 
-          const nextMemberTypeOptions = Array.from(
-            new Set(
-              formattedMembers
-                .map(m => String(m.type || '').trim())
-                .filter(Boolean)
-            )
-          )
-            .sort((a, b) => a.localeCompare(b))
-            .map((typeLabel) => ({ label: typeLabel, value: typeLabel.toLowerCase() }))
-
-          const nextBatchOptions = Array.from(
-            new Set(
-              formattedMembers
-                .map(m => String(m.batch || '').trim())
-                .filter((batch) => batch && batch.toLowerCase() !== 'unknown')
-            )
-          ).sort()
-          const nextDepartmentOptions = Array.from(
-            new Set(
-              formattedMembers
-                .map(m => String(m.department || '').trim())
-                .filter((department) => department && department.toLowerCase() !== 'unknown')
-            )
-          ).sort()
-
-          setMemberTypeOptions(prev => {
-            const optionMap = new Map(prev.map(option => [option.value, option.label]))
-            nextMemberTypeOptions.forEach((option) => {
-              if (!optionMap.has(option.value)) {
-                optionMap.set(option.value, option.label)
-              }
-            })
-
-            return Array.from(optionMap.entries())
-              .sort((a, b) => a[1].localeCompare(b[1]))
-              .map(([value, label]) => ({ value, label }))
-          })
+          const nextBatchOptions = Array.from(new Set(formattedMembers.map(m => m.batch))).sort()
           setBatchOptions(prev => Array.from(new Set([...prev, ...nextBatchOptions])).sort())
-          setDepartmentOptions(prev => Array.from(new Set([...prev, ...nextDepartmentOptions])).sort())
           console.debug('[Community] response count', formattedMembers.length)
           membersCacheRef.current.set(cacheKey, formattedMembers)
           setMembers(formattedMembers)
@@ -154,13 +110,31 @@ function Community() {
     fetchUsers()
   }, [activeFilters, user?.studentId])
 
-  const memberTypes = [{ label: 'All Members', value: '' }, ...memberTypeOptions]
-  const departments = ['All Departments', ...departmentOptions]
+  const memberTypes = [
+    { label: 'All Members', value: '' },
+    { label: 'Alumni', value: 'alumni' },
+    { label: 'Student', value: 'student' },
+  ]
+  const departments = [
+    { label: 'All Departments', value: '' },
+    { label: 'CSE', value: 'cse' },
+    { label: 'EEE', value: 'eee' },
+    { label: 'ME', value: 'me' },
+    { label: 'CE', value: 'ce' },
+    { label: 'URP', value: 'urp' },
+    { label: 'Arch', value: 'arch' },
+    { label: 'PME', value: 'pme' },
+    { label: 'ECE', value: 'ece' },
+    { label: 'PHY', value: 'phy' },
+    { label: 'CHEM', value: 'chem' },
+    { label: 'MATH', value: 'math' },
+    { label: 'HUM', value: 'hum' },
+  ]
   const batches = ['All Batches', ...batchOptions]
 
   const handleFollow = async (memberId) => {
     if (!isLoggedIn) {
-      navigateToLogin()
+      navigate('/login')
       return
     }
     try {
@@ -186,7 +160,7 @@ function Community() {
 
   const handleViewProfile = (memberId) => {
     if (!isLoggedIn) {
-      navigateToLogin()
+      navigate('/login')
       return
     }
     navigate(`/member/${memberId}`)
@@ -230,8 +204,8 @@ function Community() {
             <select value={filters.role} onChange={(e) => setFilters(prev => ({ ...prev, role: e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
               {memberTypes.map(type => <option key={type.label} value={type.value}>{type.label}</option>)}
             </select>
-            <select value={filters.department} onChange={(e) => setFilters(prev => ({ ...prev, department: e.target.value === 'All Departments' ? '' : e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
-              {departments.map(dept => <option key={dept} value={dept === 'All Departments' ? '' : dept}>{dept}</option>)}
+            <select value={filters.department} onChange={(e) => setFilters(prev => ({ ...prev, department: e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+              {departments.map(dept => <option key={dept.label} value={dept.value}>{dept.label}</option>)}
             </select>
             <select value={filters.batch} onChange={(e) => setFilters(prev => ({ ...prev, batch: e.target.value === 'All Batches' ? '' : e.target.value }))} className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
               {batches.map(batch => <option key={batch} value={batch === 'All Batches' ? '' : batch}>{batch === 'All Batches' ? batch : `Batch ${batch}`}</option>)}
@@ -319,10 +293,10 @@ function Community() {
                 </button>
                 <button 
                   onClick={() => handleFollow(member.id)}
-                  className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
                     isFollowingMember(member.id)
-                      ? 'border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:border-rose-300 dark:hover:border-rose-700 hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-600 dark:hover:text-rose-300'
-                      : 'border-transparent bg-teal-600 text-white hover:bg-teal-700'
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                      : 'bg-teal-600 text-white hover:bg-teal-700'
                   }`}
                 >
                   <i className={`fas ${isFollowingMember(member.id) ? 'fa-user-check' : 'fa-user-plus'}`}></i>

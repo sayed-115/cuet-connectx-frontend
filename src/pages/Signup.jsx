@@ -1,27 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { authAPI } from '../services/api'
 import cuetLogo from '../assets/logos/CUET_Vector_Logo.svg.png'
-
-const resolveRedirectPath = (fromState) => {
-  if (!fromState) return '/'
-
-  if (typeof fromState === 'string') {
-    return fromState === '/login' || fromState === '/signup' ? '/' : fromState
-  }
-
-  const pathname = fromState.pathname || '/'
-  const search = fromState.search || ''
-  const hash = fromState.hash || ''
-  const target = `${pathname}${search}${hash}`
-
-  if (target === '/login' || target === '/signup') {
-    return '/'
-  }
-
-  return target
-}
 
 // Department code mapping
 const DEPARTMENT_CODES = {
@@ -87,18 +68,15 @@ function Signup() {
   const [registrationSuccess, setRegistrationSuccess] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [resendMessage, setResendMessage] = useState('')
-  const [resendMessageType, setResendMessageType] = useState('success')
   const { register, isLoggedIn } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
-  const redirectPath = resolveRedirectPath(location.state?.from)
 
   // Redirect if already logged in
   useEffect(() => {
     if (isLoggedIn) {
-      navigate(redirectPath, { replace: true })
+      navigate('/profile')
     }
-  }, [isLoggedIn, navigate, redirectPath])
+  }, [isLoggedIn, navigate])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -150,13 +128,8 @@ function Signup() {
       if (result.success) {
         if (result.needsVerification) {
           setRegistrationSuccess(true)
-          if (result.message) {
-            const failedToSend = /could not send|failed/i.test(result.message)
-            setResendMessage(result.message)
-            setResendMessageType(failedToSend ? 'error' : 'success')
-          }
         } else {
-          navigate(redirectPath, { replace: true })
+          navigate('/profile')
         }
       } else {
         setError(result.error)
@@ -170,14 +143,11 @@ function Signup() {
   const handleResendVerification = async () => {
     setResendLoading(true)
     setResendMessage('')
-    setResendMessageType('success')
     try {
       const response = await authAPI.resendVerification(formData.email)
       setResendMessage(response.message || 'Verification email sent!')
-      setResendMessageType('success')
     } catch (err) {
       setResendMessage(err.message || 'Failed to resend. Try again later.')
-      setResendMessageType('error')
     }
     setResendLoading(false)
   }
@@ -200,11 +170,7 @@ function Signup() {
           </p>
 
           {resendMessage && (
-            <div className={`px-4 py-3 rounded-xl text-sm mb-4 ${
-              resendMessageType === 'error'
-                ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                : 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400'
-            }`}>
+            <div className="bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 px-4 py-3 rounded-xl text-sm mb-4">
               {resendMessage}
             </div>
           )}
