@@ -15,8 +15,8 @@ const INITIAL_FILTERS = {
 }
 
 const LEVEL_MATCHERS = [
-  { value: 'undergraduate', keywords: ['undergraduate', 'bachelor', 'bsc', 'bs', 'honours', 'honors'] },
-  { value: 'masters', keywords: ["master's", 'masters', 'master', 'msc', 'ms'] },
+  { value: 'undergraduate', keywords: ['undergraduate', 'undergrad', "bachelor's program", 'bachelor program', "bachelor's scholarship", 'honours scholarship', 'honors scholarship'] },
+  { value: 'masters', keywords: ["master's", 'masters', 'master degree', 'msc', "master's scholarship"] },
   { value: 'phd', keywords: ['phd', 'doctorate', 'doctoral'] },
   { value: 'postdoc', keywords: ['postdoc', 'post-doc'] },
 ]
@@ -117,6 +117,11 @@ function mapLevelSelectionToTags(levelValue = '') {
 }
 
 function toScholarshipViewModel(scholarship) {
+  const levelSourceText = normalizeText([
+    scholarship.title,
+    scholarship.description,
+  ].filter(Boolean).join(' '))
+
   const searchText = normalizeText([
     scholarship.title,
     scholarship.organization,
@@ -125,7 +130,7 @@ function toScholarshipViewModel(scholarship) {
     scholarship.amount,
   ].filter(Boolean).join(' '))
 
-  const levelTags = detectLevelTags(searchText)
+  const levelTags = detectLevelTags(levelSourceText)
   const locationTags = detectLocationTags(searchText)
   const funding = detectFunding(searchText)
   const postedByRole = normalizeText(scholarship.postedBy?.role || scholarship.postedBy?.userType || 'alumni')
@@ -271,9 +276,15 @@ function Scholarships() {
       newScholarship.description,
     ].join(' '))
 
+    const levelSourceText = normalizeText([
+      newScholarship.name,
+      newScholarship.level,
+      newScholarship.description,
+    ].join(' '))
+
     const levelTags = (() => {
       const fromSelection = mapLevelSelectionToTags(newScholarship.level)
-      return fromSelection.length ? fromSelection : detectLevelTags(searchText)
+      return fromSelection.length ? fromSelection : detectLevelTags(levelSourceText)
     })()
 
     const locationTags = detectLocationTags(`${newScholarship.location} ${searchText}`)
