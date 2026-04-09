@@ -14,10 +14,153 @@ const INITIAL_FILTERS = {
   role: '',
 }
 
+const LEVEL_MATCHERS = [
+  { value: 'undergraduate', keywords: ['undergraduate', 'bachelor', 'bsc', 'bs', 'honours', 'honors'] },
+  { value: 'masters', keywords: ["master's", 'masters', 'master', 'msc', 'ms'] },
+  { value: 'phd', keywords: ['phd', 'doctorate', 'doctoral'] },
+  { value: 'postdoc', keywords: ['postdoc', 'post-doc'] },
+]
+
+const LOCATION_MATCHERS = [
+  { value: 'bangladesh', label: 'Bangladesh', keywords: ['bangladesh', 'dhaka', 'chittagong', 'cuet'] },
+  { value: 'usa', label: 'USA', keywords: ['usa', 'u.s.a', 'united states', 'america', 'new york', 'california'] },
+  { value: 'uk', label: 'UK', keywords: ['uk', 'u.k', 'united kingdom', 'england', 'scotland', 'wales', 'london'] },
+  { value: 'europe', label: 'Europe', keywords: ['europe', 'eu', 'germany', 'france', 'italy', 'spain', 'netherlands', 'sweden'] },
+  { value: 'asia', label: 'Asia', keywords: ['asia', 'japan', 'korea', 'china', 'singapore', 'malaysia', 'indonesia'] },
+  { value: 'australia', label: 'Australia', keywords: ['australia', 'australian', 'sydney', 'melbourne'] },
+]
+
+const FUNDING_MATCHERS = [
+  { value: 'full', label: 'Full', keywords: ['fully funded', 'full funding', 'full scholarship', 'full tuition'] },
+  { value: 'tuition only', label: 'Tuition Only', keywords: ['tuition only', 'tuition waiver', 'tuition fee'] },
+  { value: 'stipend', label: 'Stipend', keywords: ['stipend', 'living allowance', 'monthly allowance'] },
+  { value: 'partial', label: 'Partial', keywords: ['partial', 'partially funded', 'co-funding'] },
+]
+
+const LOCATION_LABELS = LOCATION_MATCHERS.reduce((acc, item) => {
+  acc[item.value] = item.label
+  return acc
+}, { international: 'International' })
+
+const normalizeText = (value) => String(value || '').toLowerCase().trim()
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+function includesKeyword(text, keyword) {
+  const normalizedText = normalizeText(text)
+  const normalizedKeyword = normalizeText(keyword)
+  if (!normalizedKeyword) return false
+
+  if (normalizedKeyword.length <= 3) {
+    const rx = new RegExp(`\\b${escapeRegex(normalizedKeyword)}\\b`, 'i')
+    return rx.test(normalizedText)
+  }
+
+  return normalizedText.includes(normalizedKeyword)
+}
+
+function detectLevelTags(text) {
+  const tags = LEVEL_MATCHERS
+    .filter((item) => item.keywords.some((keyword) => includesKeyword(text, keyword)))
+    .map((item) => item.value)
+
+  if (tags.length === 0) return ['masters', 'phd']
+  return Array.from(new Set(tags))
+}
+
+function levelLabelFromTags(tags = []) {
+  if (tags.includes('undergraduate') && tags.length === 1) return 'Undergraduate'
+  if (tags.includes('postdoc') && tags.length === 1) return 'Postdoc'
+  if (tags.includes('masters') && tags.includes('phd')) return "Master's, PhD"
+  if (tags.includes('phd')) return 'PhD'
+  if (tags.includes('masters')) return "Master's"
+  return "Master's, PhD"
+}
+
+function detectLocationTags(text) {
+  const tags = LOCATION_MATCHERS
+    .filter((item) => item.keywords.some((keyword) => includesKeyword(text, keyword)))
+    .map((item) => item.value)
+
+  if (tags.length === 0) return ['international']
+  return Array.from(new Set(tags))
+}
+
+function locationLabelFromTags(tags = []) {
+  return LOCATION_LABELS[tags[0]] || 'International'
+}
+
+function detectFunding(text, explicitType = '') {
+  const explicit = normalizeText(explicitType)
+  if (explicit) {
+    if (explicit.includes('full')) return { value: 'full', label: 'Full' }
+    if (explicit.includes('tuition')) return { value: 'tuition only', label: 'Tuition Only' }
+    if (explicit.includes('stipend')) return { value: 'stipend', label: 'Stipend' }
+    if (explicit.includes('partial')) return { value: 'partial', label: 'Partial' }
+  }
+
+  const match = FUNDING_MATCHERS.find((item) =>
+    item.keywords.some((keyword) => includesKeyword(text, keyword))
+  )
+  return match ? { value: match.value, label: match.label } : { value: 'partial', label: 'Partial' }
+}
+
+function mapLevelSelectionToTags(levelValue = '') {
+  const normalized = normalizeText(levelValue)
+  if (!normalized) return []
+  if (normalized.includes('undergraduate')) return ['undergraduate']
+  if (normalized.includes('postdoc')) return ['postdoc']
+  if (normalized.includes('phd') && normalized.includes('master')) return ['masters', 'phd']
+  if (normalized.includes('phd')) return ['phd']
+  if (normalized.includes('master')) return ['masters']
+  return detectLevelTags(normalized)
+}
+
+function toScholarshipViewModel(scholarship) {
+  const searchText = normalizeText([
+    scholarship.title,
+    scholarship.organization,
+    scholarship.description,
+    scholarship.eligibility,
+    scholarship.amount,
+  ].filter(Boolean).join(' '))
+
+  const levelTags = detectLevelTags(searchText)
+  const locationTags = detectLocationTags(searchText)
+  const funding = detectFunding(searchText)
+  const postedByRole = normalizeText(scholarship.postedBy?.role || scholarship.postedBy?.userType || 'alumni')
+
+  return {
+    id: scholarship._id,
+    name: scholarship.title,
+    level: levelLabelFromTags(levelTags),
+    location: locationLabelFromTags(locationTags),
+    fundingType: funding.label,
+    fundingValue: funding.value,
+    duration: '1-4 years',
+    fundingDetails: scholarship.amount || 'Varies',
+    deadline: scholarship.deadline ? new Date(scholarship.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
+    link: scholarship.link || '#',
+    eligibility: scholarship.eligibility || 'See official website for details',
+    benefits: scholarship.amount || 'Funding available',
+    description: scholarship.description || scholarship.title,
+    organization: scholarship.organization,
+    postedBy: scholarship.postedBy
+      ? {
+        name: scholarship.postedBy.fullName,
+        type: (scholarship.postedBy.role || scholarship.postedBy.userType || 'Alumni').replace(/^./, (c) => c.toUpperCase())
+      }
+      : { name: 'CUET Alumni', type: 'Alumni' },
+    postedByRole,
+    searchText,
+    levelTags,
+    locationTags,
+  }
+}
+
 function Scholarships() {
   const [savedScholarships, setSavedScholarships] = useState([])
   const [filters, setFilters] = useState(INITIAL_FILTERS)
-  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [showPostModal, setShowPostModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
   const [newScholarship, setNewScholarship] = useState({ 
@@ -40,32 +183,16 @@ function Scholarships() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(filters.search.toLowerCase().trim())
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [filters.search])
-
-  const activeFilters = useMemo(() => ({
-    search: debouncedSearch,
-    type: filters.type,
-    location: filters.location,
-    experience: filters.experience,
-    role: filters.role,
-  }), [debouncedSearch, filters.type, filters.location, filters.experience, filters.role])
-
-  useEffect(() => {
     console.debug('[Scholarships] selected filters', filters)
   }, [filters])
 
   // Fetch scholarships from API
   useEffect(() => {
     const fetchScholarships = async () => {
-      const cacheKey = JSON.stringify(activeFilters)
+      const cacheKey = 'all-scholarships'
       if (scholarshipsCacheRef.current.has(cacheKey)) {
         const cached = scholarshipsCacheRef.current.get(cacheKey)
-        console.debug('[Scholarships] cache hit', activeFilters)
+        console.debug('[Scholarships] cache hit (all-scholarships)')
         setScholarships(cached)
         setLoading(false)
         return
@@ -73,42 +200,10 @@ function Scholarships() {
 
       try {
         setLoading(true)
-        console.debug('[Scholarships] API request params', activeFilters)
-        const response = await scholarshipsAPI.getAll(activeFilters)
+        console.debug('[Scholarships] API request params', { limit: 200 })
+        const response = await scholarshipsAPI.getAll({ limit: 200 })
         if (response.success) {
-          const formattedScholarships = response.scholarships.map(s => ({
-            id: s._id,
-            name: s.title,
-            level: s.description?.toLowerCase().includes('undergraduate')
-              ? 'Undergraduate'
-              : s.description?.toLowerCase().includes('postdoc')
-                ? 'Postdoc'
-                : s.description?.toLowerCase().includes('phd')
-                  ? 'PhD'
-                  : "Master's, PhD",
-            location: s.description?.toLowerCase().includes('bangladesh') ? 'Bangladesh' : 'International',
-            fundingType: s.amount?.toLowerCase().includes('full')
-              ? 'Full'
-              : s.amount?.toLowerCase().includes('tuition')
-                ? 'Tuition Only'
-                : s.amount?.toLowerCase().includes('stipend')
-                  ? 'Stipend'
-                  : 'Partial',
-            duration: '1-4 years',
-            fundingDetails: s.amount || 'Varies',
-            deadline: s.deadline ? new Date(s.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
-            link: s.link || '#',
-            eligibility: s.eligibility || 'See official website for details',
-            benefits: s.amount || 'Full funding available',
-            description: s.description || s.title,
-            organization: s.organization,
-            postedBy: s.postedBy
-              ? {
-                name: s.postedBy.fullName,
-                type: (s.postedBy.role || s.postedBy.userType || 'Alumni').replace(/^./, (c) => c.toUpperCase())
-              }
-              : { name: 'CUET Alumni', type: 'Alumni' }
-          }))
+          const formattedScholarships = response.scholarships.map((s) => toScholarshipViewModel(s))
 
           console.debug('[Scholarships] response count', formattedScholarships.length)
           scholarshipsCacheRef.current.set(cacheKey, formattedScholarships)
@@ -121,7 +216,7 @@ function Scholarships() {
       }
     }
     fetchScholarships()
-  }, [activeFilters])
+  }, [])
 
   const levels = [
     { label: 'All Levels', value: '' },
@@ -165,10 +260,37 @@ function Scholarships() {
       navigate('/login')
       return
     }
+    const searchText = normalizeText([
+      newScholarship.name,
+      newScholarship.level,
+      newScholarship.location,
+      newScholarship.fundingType,
+      newScholarship.fundingDetails,
+      newScholarship.eligibility,
+      newScholarship.benefits,
+      newScholarship.description,
+    ].join(' '))
+
+    const levelTags = (() => {
+      const fromSelection = mapLevelSelectionToTags(newScholarship.level)
+      return fromSelection.length ? fromSelection : detectLevelTags(searchText)
+    })()
+
+    const locationTags = detectLocationTags(`${newScholarship.location} ${searchText}`)
+    const funding = detectFunding(searchText, newScholarship.fundingType)
+
     const scholarship = {
-      id: scholarships.length + 1,
+      id: `local-${Date.now()}`,
       ...newScholarship,
-      postedBy: { name: user?.fullName || 'You', type: 'Alumni' }
+      level: newScholarship.level || levelLabelFromTags(levelTags),
+      location: newScholarship.location || locationLabelFromTags(locationTags),
+      fundingType: newScholarship.fundingType || funding.label,
+      fundingValue: funding.value,
+      postedBy: { name: user?.fullName || 'You', type: 'Alumni' },
+      postedByRole: normalizeText(user?.role || user?.userType || 'alumni'),
+      searchText,
+      levelTags,
+      locationTags,
     }
     setScholarships([scholarship, ...scholarships])
     setNewScholarship({ 
@@ -187,7 +309,22 @@ function Scholarships() {
     setShowPostModal(false)
   }
 
-  const filteredScholarships = scholarships
+  const filteredScholarships = useMemo(() => {
+    const search = normalizeText(filters.search)
+    const type = normalizeText(filters.type)
+    const location = normalizeText(filters.location)
+    const experience = normalizeText(filters.experience)
+    const role = normalizeText(filters.role)
+
+    return scholarships.filter((scholarship) => {
+      if (search && !scholarship.searchText.includes(search)) return false
+      if (type && scholarship.fundingValue !== type) return false
+      if (location && !scholarship.locationTags.includes(location)) return false
+      if (experience && !scholarship.levelTags.includes(experience)) return false
+      if (role && scholarship.postedByRole !== role) return false
+      return true
+    })
+  }, [scholarships, filters.search, filters.type, filters.location, filters.experience, filters.role])
 
   return (
     <div className="py-16 bg-gray-50 dark:bg-gray-900 min-h-screen">
