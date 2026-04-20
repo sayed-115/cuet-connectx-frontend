@@ -170,6 +170,7 @@ function Scholarships() {
   const [showDetailModal, setShowDetailModal] = useState(null)
   const [newScholarship, setNewScholarship] = useState({ 
     name: '', 
+    organization: '',
     level: '', 
     location: '', 
     fundingType: '', 
@@ -183,8 +184,11 @@ function Scholarships() {
   })
   const [scholarships, setScholarships] = useState([])
   const [loading, setLoading] = useState(true)
+  const [postingScholarship, setPostingScholarship] = useState(false)
+  const [postScholarshipError, setPostScholarshipError] = useState('')
+  const [refreshNonce, setRefreshNonce] = useState(0)
   const scholarshipsCacheRef = useRef(new Map())
-  const { isLoggedIn, user } = useAuth()
+  const { isLoggedIn } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -221,7 +225,7 @@ function Scholarships() {
       }
     }
     fetchScholarships()
-  }, [])
+  }, [refreshNonce])
 
   const levels = [
     { label: 'All Levels', value: '' },
@@ -259,65 +263,58 @@ function Scholarships() {
     }
   }
 
-  const handlePostScholarship = (e) => {
+  const handlePostScholarship = async (e) => {
     e.preventDefault()
     if (!isLoggedIn) {
       navigate('/login')
       return
     }
-    const searchText = normalizeText([
-      newScholarship.name,
-      newScholarship.level,
-      newScholarship.location,
-      newScholarship.fundingType,
-      newScholarship.fundingDetails,
-      newScholarship.eligibility,
-      newScholarship.benefits,
-      newScholarship.description,
-    ].join(' '))
 
-    const levelSourceText = normalizeText([
-      newScholarship.name,
-      newScholarship.level,
-      newScholarship.description,
-    ].join(' '))
+    try {
+      setPostingScholarship(true)
+      setPostScholarshipError('')
 
-    const levelTags = (() => {
-      const fromSelection = mapLevelSelectionToTags(newScholarship.level)
-      return fromSelection.length ? fromSelection : detectLevelTags(levelSourceText)
-    })()
+      const combinedDescription = [
+        newScholarship.description?.trim(),
+        newScholarship.benefits?.trim() ? `Benefits: ${newScholarship.benefits.trim()}` : '',
+        newScholarship.level?.trim() ? `Level: ${newScholarship.level.trim()}` : '',
+        newScholarship.location?.trim() ? `Location: ${newScholarship.location.trim()}` : '',
+        newScholarship.duration?.trim() ? `Duration: ${newScholarship.duration.trim()}` : '',
+        newScholarship.fundingType?.trim() ? `Funding Type: ${newScholarship.fundingType.trim()}` : '',
+      ].filter(Boolean).join('\n\n')
 
-    const locationTags = detectLocationTags(`${newScholarship.location} ${searchText}`)
-    const funding = detectFunding(searchText, newScholarship.fundingType)
+      await scholarshipsAPI.create({
+        title: newScholarship.name.trim(),
+        organization: newScholarship.organization.trim(),
+        amount: newScholarship.fundingDetails.trim(),
+        eligibility: newScholarship.eligibility.trim(),
+        description: combinedDescription,
+        deadline: newScholarship.deadline || null,
+        link: newScholarship.link.trim(),
+      })
 
-    const scholarship = {
-      id: `local-${Date.now()}`,
-      ...newScholarship,
-      level: newScholarship.level || levelLabelFromTags(levelTags),
-      location: newScholarship.location || locationLabelFromTags(locationTags),
-      fundingType: newScholarship.fundingType || funding.label,
-      fundingValue: funding.value,
-      postedBy: { name: user?.fullName || 'You', type: 'Alumni' },
-      postedByRole: normalizeText(user?.role || user?.userType || 'alumni'),
-      searchText,
-      levelTags,
-      locationTags,
+      scholarshipsCacheRef.current.clear()
+      setRefreshNonce((prev) => prev + 1)
+      setNewScholarship({ 
+        name: '', 
+        organization: '',
+        level: '', 
+        location: '', 
+        fundingType: '', 
+        duration: '',
+        fundingDetails: '', 
+        deadline: '', 
+        link: '',
+        eligibility: '',
+        benefits: '',
+        description: '' 
+      })
+      setShowPostModal(false)
+    } catch (error) {
+      setPostScholarshipError(error?.message || 'Failed to post scholarship. Please try again.')
+    } finally {
+      setPostingScholarship(false)
     }
-    setScholarships([scholarship, ...scholarships])
-    setNewScholarship({ 
-      name: '', 
-      level: '', 
-      location: '', 
-      fundingType: '', 
-      duration: '',
-      fundingDetails: '', 
-      deadline: '', 
-      link: '',
-      eligibility: '',
-      benefits: '',
-      description: '' 
-    })
-    setShowPostModal(false)
   }
 
   const filteredScholarships = useMemo(() => {
@@ -416,9 +413,18 @@ function Scholarships() {
                 </button>
               </div>
               <form onSubmit={handlePostScholarship} className="space-y-4">
+                {postScholarshipError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-300">
+                    {postScholarshipError}
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Scholarship Name *</label>
                   <input type="text" required value={newScholarship.name} onChange={(e) => setNewScholarship({...newScholarship, name: e.target.value})} className="input-professional" placeholder="Enter scholarship name" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Organization *</label>
+                  <input type="text" required value={newScholarship.organization} onChange={(e) => setNewScholarship({...newScholarship, organization: e.target.value})} className="input-professional" placeholder="University, foundation, or institution" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -481,7 +487,9 @@ function Scholarships() {
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={() => setShowPostModal(false)} className="flex-1 btn-secondary">Cancel</button>
-                  <button type="submit" className="flex-1 btn-primary">Post Scholarship</button>
+                  <button type="submit" disabled={postingScholarship} className="flex-1 btn-primary disabled:opacity-70 disabled:cursor-not-allowed">
+                    {postingScholarship ? 'Posting...' : 'Post Scholarship'}
+                  </button>
                 </div>
               </form>
             </div>

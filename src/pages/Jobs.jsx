@@ -14,6 +14,49 @@ const INITIAL_FILTERS = {
   role: '',
 }
 
+const parseListField = (value) =>
+  String(value || '')
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+const getTimeAgo = (dateString) => {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffTime = Math.abs(now - date)
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays} days ago`
+  if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
+  return `${Math.ceil(diffDays / 30)} months ago`
+}
+
+const toJobViewModel = (job) => ({
+  id: job._id,
+  title: job.title,
+  company: job.company,
+  location: job.location || 'Remote',
+  type: job.type || 'Full-time',
+  posted: getTimeAgo(job.createdAt),
+  salary: job.salary ? `${job.salary.currency} ${job.salary.min?.toLocaleString()}-${job.salary.max?.toLocaleString()}` : 'Competitive',
+  experience: job.experience || 'Entry Level',
+  deadline: job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
+  postedByAlumni: (job.postedBy?.role || job.postedBy?.userType || '').toLowerCase() === 'alumni',
+  postedBy: job.postedBy ? {
+    name: job.postedBy.fullName,
+    type: 'Alumni',
+    batch: job.postedBy.batch,
+    position: `${job.postedBy.currentPosition || ''} at ${job.postedBy.company || ''}`
+  } : { name: 'CUET Alumni', type: 'Alumni' },
+  requirements: job.requirements || [],
+  responsibilities: job.responsibilities || [],
+  skills: job.skills || [],
+  applicationLink: job.applyLink || '#',
+  icon: 'fa-briefcase',
+  iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
+})
+
 function Jobs() {
   const [filters, setFilters] = useState(INITIAL_FILTERS)
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -24,6 +67,9 @@ function Jobs() {
   const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [postingJob, setPostingJob] = useState(false)
+  const [postJobError, setPostJobError] = useState('')
+  const [refreshNonce, setRefreshNonce] = useState(0)
   const jobsCacheRef = useRef(new Map())
   const { isLoggedIn } = useAuth()
   const navigate = useNavigate()
@@ -65,30 +111,7 @@ function Jobs() {
         console.debug('[Jobs] API request params', activeFilters)
         const response = await jobsAPI.getAll(activeFilters)
         if (response.success) {
-          const formattedJobs = response.jobs.map(job => ({
-            id: job._id,
-            title: job.title,
-            company: job.company,
-            location: job.location || 'Remote',
-            type: job.type || 'Full-time',
-            posted: getTimeAgo(job.createdAt),
-            salary: job.salary ? `${job.salary.currency} ${job.salary.min?.toLocaleString()}-${job.salary.max?.toLocaleString()}` : 'Competitive',
-            experience: job.experience || 'Entry Level',
-            deadline: job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
-            postedByAlumni: (job.postedBy?.role || job.postedBy?.userType || '').toLowerCase() === 'alumni',
-            postedBy: job.postedBy ? { 
-              name: job.postedBy.fullName, 
-              type: 'Alumni', 
-              batch: job.postedBy.batch,
-              position: `${job.postedBy.currentPosition || ''} at ${job.postedBy.company || ''}`
-            } : { name: 'CUET Alumni', type: 'Alumni' },
-            requirements: job.requirements || [],
-            responsibilities: job.responsibilities || [],
-            skills: job.skills || [],
-            applicationLink: job.applyLink || '#',
-            icon: 'fa-briefcase',
-            iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
-          }))
+          const formattedJobs = response.jobs.map((job) => toJobViewModel(job))
 
           console.debug('[Jobs] response count', formattedJobs.length)
           jobsCacheRef.current.set(cacheKey, formattedJobs)
@@ -101,20 +124,7 @@ function Jobs() {
       }
     }
     fetchJobs()
-  }, [activeFilters])
-
-  // Helper function to get time ago
-  const getTimeAgo = (dateString) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now - date)
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    if (diffDays === 0) return 'Today'
-    if (diffDays === 1) return 'Yesterday'
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
-  }
+  }, [activeFilters, refreshNonce])
 
   const jobTypes = [
     { label: 'All Job Types', value: '' },
@@ -161,33 +171,48 @@ function Jobs() {
     }
   }
 
-  const handlePostJob = (e) => {
+  const handlePostJob = async (e) => {
     e.preventDefault()
     if (!isLoggedIn) {
       navigate('/login')
       return
     }
-    const job = {
-      id: jobs.length + 1,
-      title: newJob.title,
-      company: newJob.company,
-      location: newJob.location,
-      type: newJob.type,
-      experience: newJob.experience,
-      salary: 'Competitive',
-      description: newJob.responsibilities,
-      requirements: newJob.requirements,
-      applicationLink: newJob.applicationLink,
-      deadline: newJob.deadline,
-      posted: 'Just now',
-      postedByAlumni: true,
-      postedBy: { name: 'You', type: 'Alumni', batch: '2020' },
-      icon: 'fa-briefcase',
-      iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
+
+    try {
+      setPostingJob(true)
+      setPostJobError('')
+
+      const requirements = parseListField(newJob.requirements)
+      const responsibilities = parseListField(newJob.responsibilities)
+      const description = newJob.responsibilities.trim() || newJob.requirements.trim()
+
+      if (!description) {
+        setPostJobError('Please provide at least requirements or responsibilities.')
+        return
+      }
+
+      await jobsAPI.create({
+        title: newJob.title.trim(),
+        company: newJob.company.trim(),
+        location: newJob.location.trim(),
+        type: newJob.type || 'Full-time',
+        experience: newJob.experience || 'Entry Level',
+        description,
+        requirements,
+        responsibilities,
+        deadline: newJob.deadline || null,
+        applyLink: newJob.applicationLink.trim(),
+      })
+
+      jobsCacheRef.current.clear()
+      setRefreshNonce((prev) => prev + 1)
+      setNewJob({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
+      setShowPostModal(false)
+    } catch (error) {
+      setPostJobError(error?.message || 'Failed to post job. Please try again.')
+    } finally {
+      setPostingJob(false)
     }
-    setJobs([job, ...jobs])
-    setNewJob({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
-    setShowPostModal(false)
   }
 
   const filteredJobs = jobs
@@ -271,6 +296,11 @@ function Jobs() {
                 </button>
               </div>
               <form onSubmit={handlePostJob} className="space-y-4">
+                {postJobError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-300">
+                    {postJobError}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Name *</label>
@@ -329,7 +359,9 @@ function Jobs() {
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={() => setShowPostModal(false)} className="flex-1 btn-secondary">Cancel</button>
-                  <button type="submit" className="flex-1 btn-primary">Post Job</button>
+                  <button type="submit" disabled={postingJob} className="flex-1 btn-primary disabled:opacity-70 disabled:cursor-not-allowed">
+                    {postingJob ? 'Posting...' : 'Post Job'}
+                  </button>
                 </div>
               </form>
             </div>
