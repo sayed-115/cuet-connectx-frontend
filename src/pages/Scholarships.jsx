@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { scholarshipsAPI } from '../services/api'
@@ -14,10 +14,159 @@ const INITIAL_FILTERS = {
   role: '',
 }
 
+const LEVEL_MATCHERS = [
+  { value: 'undergraduate', keywords: ['undergraduate', 'undergrad', "bachelor's program", 'bachelor program', "bachelor's scholarship", 'honours scholarship', 'honors scholarship'] },
+  { value: 'masters', keywords: ["master's", 'masters', 'master degree', 'msc', "master's scholarship"] },
+  { value: 'phd', keywords: ['phd', 'doctorate', 'doctoral'] },
+  { value: 'postdoc', keywords: ['postdoc', 'post-doc'] },
+]
+
+const LOCATION_MATCHERS = [
+  { value: 'bangladesh', label: 'Bangladesh', keywords: ['bangladesh', 'dhaka', 'chittagong', 'cuet'] },
+  { value: 'usa', label: 'USA', keywords: ['usa', 'u.s.a', 'united states', 'america', 'new york', 'california'] },
+  { value: 'uk', label: 'UK', keywords: ['uk', 'u.k', 'united kingdom', 'england', 'scotland', 'wales', 'london'] },
+  { value: 'europe', label: 'Europe', keywords: ['europe', 'eu', 'germany', 'france', 'italy', 'spain', 'netherlands', 'sweden'] },
+  { value: 'asia', label: 'Asia', keywords: ['asia', 'japan', 'korea', 'china', 'singapore', 'malaysia', 'indonesia'] },
+  { value: 'australia', label: 'Australia', keywords: ['australia', 'australian', 'sydney', 'melbourne'] },
+]
+
+const FUNDING_MATCHERS = [
+  { value: 'full', label: 'Full', keywords: ['fully funded', 'full funding', 'full scholarship', 'full tuition'] },
+  { value: 'tuition only', label: 'Tuition Only', keywords: ['tuition only', 'tuition waiver', 'tuition fee'] },
+  { value: 'stipend', label: 'Stipend', keywords: ['stipend', 'living allowance', 'monthly allowance'] },
+  { value: 'partial', label: 'Partial', keywords: ['partial', 'partially funded', 'co-funding'] },
+]
+
+const LOCATION_LABELS = LOCATION_MATCHERS.reduce((acc, item) => {
+  acc[item.value] = item.label
+  return acc
+}, { international: 'International' })
+
+const normalizeText = (value) => String(value || '').toLowerCase().trim()
+const SCHOLARSHIPS_CACHE_KEY = 'all-scholarships'
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+function includesKeyword(text, keyword) {
+  const normalizedText = normalizeText(text)
+  const normalizedKeyword = normalizeText(keyword)
+  if (!normalizedKeyword) return false
+
+  if (normalizedKeyword.length <= 3) {
+    const rx = new RegExp(`\\b${escapeRegex(normalizedKeyword)}\\b`, 'i')
+    return rx.test(normalizedText)
+  }
+
+  return normalizedText.includes(normalizedKeyword)
+}
+
+function detectLevelTags(text) {
+  const tags = LEVEL_MATCHERS
+    .filter((item) => item.keywords.some((keyword) => includesKeyword(text, keyword)))
+    .map((item) => item.value)
+
+  if (tags.length === 0) return ['masters', 'phd']
+  return Array.from(new Set(tags))
+}
+
+function levelLabelFromTags(tags = []) {
+  if (tags.includes('undergraduate') && tags.length === 1) return 'Undergraduate'
+  if (tags.includes('postdoc') && tags.length === 1) return 'Postdoc'
+  if (tags.includes('masters') && tags.includes('phd')) return "Master's, PhD"
+  if (tags.includes('phd')) return 'PhD'
+  if (tags.includes('masters')) return "Master's"
+  return "Master's, PhD"
+}
+
+function detectLocationTags(text) {
+  const tags = LOCATION_MATCHERS
+    .filter((item) => item.keywords.some((keyword) => includesKeyword(text, keyword)))
+    .map((item) => item.value)
+
+  if (tags.length === 0) return ['international']
+  return Array.from(new Set(tags))
+}
+
+function locationLabelFromTags(tags = []) {
+  return LOCATION_LABELS[tags[0]] || 'International'
+}
+
+function detectFunding(text, explicitType = '') {
+  const explicit = normalizeText(explicitType)
+  if (explicit) {
+    if (explicit.includes('full')) return { value: 'full', label: 'Full' }
+    if (explicit.includes('tuition')) return { value: 'tuition only', label: 'Tuition Only' }
+    if (explicit.includes('stipend')) return { value: 'stipend', label: 'Stipend' }
+    if (explicit.includes('partial')) return { value: 'partial', label: 'Partial' }
+  }
+
+  const match = FUNDING_MATCHERS.find((item) =>
+    item.keywords.some((keyword) => includesKeyword(text, keyword))
+  )
+  return match ? { value: match.value, label: match.label } : { value: 'partial', label: 'Partial' }
+}
+
+function mapLevelSelectionToTags(levelValue = '') {
+  const normalized = normalizeText(levelValue)
+  if (!normalized) return []
+  if (normalized.includes('undergraduate')) return ['undergraduate']
+  if (normalized.includes('postdoc')) return ['postdoc']
+  if (normalized.includes('phd') && normalized.includes('master')) return ['masters', 'phd']
+  if (normalized.includes('phd')) return ['phd']
+  if (normalized.includes('master')) return ['masters']
+  return detectLevelTags(normalized)
+}
+
+function toScholarshipViewModel(scholarship) {
+  const levelSourceText = normalizeText([
+    scholarship.title,
+    scholarship.description,
+  ].filter(Boolean).join(' '))
+
+  const searchText = normalizeText([
+    scholarship.title,
+    scholarship.organization,
+    scholarship.description,
+    scholarship.eligibility,
+    scholarship.amount,
+  ].filter(Boolean).join(' '))
+
+  const levelTags = detectLevelTags(levelSourceText)
+  const locationTags = detectLocationTags(searchText)
+  const funding = detectFunding(searchText)
+  const postedByRole = normalizeText(scholarship.postedBy?.role || scholarship.postedBy?.userType || 'alumni')
+
+  return {
+    id: scholarship._id,
+    name: scholarship.title,
+    level: levelLabelFromTags(levelTags),
+    location: locationLabelFromTags(locationTags),
+    fundingType: funding.label,
+    fundingValue: funding.value,
+    duration: '1-4 years',
+    fundingDetails: scholarship.amount || 'Varies',
+    deadline: scholarship.deadline ? new Date(scholarship.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
+    link: scholarship.link || '#',
+    eligibility: scholarship.eligibility || 'See official website for details',
+    benefits: scholarship.amount || 'Funding available',
+    description: scholarship.description || scholarship.title,
+    organization: scholarship.organization,
+    postedBy: scholarship.postedBy
+      ? {
+        name: scholarship.postedBy.fullName,
+        type: (scholarship.postedBy.role || scholarship.postedBy.userType || 'Alumni').replace(/^./, (c) => c.toUpperCase())
+      }
+      : { name: 'CUET Alumni', type: 'Alumni' },
+    postedByRole,
+    searchText,
+    levelTags,
+    locationTags,
+  }
+}
+
 function Scholarships() {
   const [savedScholarships, setSavedScholarships] = useState([])
   const [filters, setFilters] = useState(INITIAL_FILTERS)
-  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [showPostModal, setShowPostModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
   const [newScholarship, setNewScholarship] = useState({ 
@@ -35,93 +184,50 @@ function Scholarships() {
   })
   const [scholarships, setScholarships] = useState([])
   const [loading, setLoading] = useState(true)
+  const [posting, setPosting] = useState(false)
+  const [postError, setPostError] = useState('')
   const scholarshipsCacheRef = useRef(new Map())
   const { isLoggedIn, user } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(filters.search.toLowerCase().trim())
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [filters.search])
-
-  const activeFilters = useMemo(() => ({
-    search: debouncedSearch,
-    type: filters.type,
-    location: filters.location,
-    experience: filters.experience,
-    role: filters.role,
-  }), [debouncedSearch, filters.type, filters.location, filters.experience, filters.role])
-
-  useEffect(() => {
     console.debug('[Scholarships] selected filters', filters)
   }, [filters])
 
+  const fetchScholarships = useCallback(async (forceRefresh = false) => {
+    if (!forceRefresh && scholarshipsCacheRef.current.has(SCHOLARSHIPS_CACHE_KEY)) {
+      const cached = scholarshipsCacheRef.current.get(SCHOLARSHIPS_CACHE_KEY)
+      console.debug('[Scholarships] cache hit (all-scholarships)')
+      setScholarships(cached)
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+      console.debug('[Scholarships] API request params', { limit: 200 })
+      const response = await scholarshipsAPI.getAll({ limit: 200 })
+      if (response.success) {
+        const formattedScholarships = response.scholarships.map((s) => toScholarshipViewModel(s))
+
+        console.debug('[Scholarships] response count', formattedScholarships.length)
+        scholarshipsCacheRef.current.set(SCHOLARSHIPS_CACHE_KEY, formattedScholarships)
+        setScholarships(formattedScholarships)
+      } else {
+        scholarshipsCacheRef.current.set(SCHOLARSHIPS_CACHE_KEY, [])
+        setScholarships([])
+      }
+    } catch (error) {
+      console.error('Error fetching scholarships:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   // Fetch scholarships from API
   useEffect(() => {
-    const fetchScholarships = async () => {
-      const cacheKey = JSON.stringify(activeFilters)
-      if (scholarshipsCacheRef.current.has(cacheKey)) {
-        const cached = scholarshipsCacheRef.current.get(cacheKey)
-        console.debug('[Scholarships] cache hit', activeFilters)
-        setScholarships(cached)
-        setLoading(false)
-        return
-      }
-
-      try {
-        setLoading(true)
-        console.debug('[Scholarships] API request params', activeFilters)
-        const response = await scholarshipsAPI.getAll(activeFilters)
-        if (response.success) {
-          const formattedScholarships = response.scholarships.map(s => ({
-            id: s._id,
-            name: s.title,
-            level: s.description?.toLowerCase().includes('undergraduate')
-              ? 'Undergraduate'
-              : s.description?.toLowerCase().includes('postdoc')
-                ? 'Postdoc'
-                : s.description?.toLowerCase().includes('phd')
-                  ? 'PhD'
-                  : "Master's, PhD",
-            location: s.description?.toLowerCase().includes('bangladesh') ? 'Bangladesh' : 'International',
-            fundingType: s.amount?.toLowerCase().includes('full')
-              ? 'Full'
-              : s.amount?.toLowerCase().includes('tuition')
-                ? 'Tuition Only'
-                : s.amount?.toLowerCase().includes('stipend')
-                  ? 'Stipend'
-                  : 'Partial',
-            duration: '1-4 years',
-            fundingDetails: s.amount || 'Varies',
-            deadline: s.deadline ? new Date(s.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
-            link: s.link || '#',
-            eligibility: s.eligibility || 'See official website for details',
-            benefits: s.amount || 'Full funding available',
-            description: s.description || s.title,
-            organization: s.organization,
-            postedBy: s.postedBy
-              ? {
-                name: s.postedBy.fullName,
-                type: (s.postedBy.role || s.postedBy.userType || 'Alumni').replace(/^./, (c) => c.toUpperCase())
-              }
-              : { name: 'CUET Alumni', type: 'Alumni' }
-          }))
-
-          console.debug('[Scholarships] response count', formattedScholarships.length)
-          scholarshipsCacheRef.current.set(cacheKey, formattedScholarships)
-          setScholarships(formattedScholarships)
-        }
-      } catch (error) {
-        console.error('Error fetching scholarships:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
     fetchScholarships()
-  }, [activeFilters])
+  }, [fetchScholarships])
 
   const levels = [
     { label: 'All Levels', value: '' },
@@ -159,35 +265,82 @@ function Scholarships() {
     }
   }
 
-  const handlePostScholarship = (e) => {
+  const handlePostScholarship = async (e) => {
     e.preventDefault()
     if (!isLoggedIn) {
       navigate('/login')
       return
     }
-    const scholarship = {
-      id: scholarships.length + 1,
-      ...newScholarship,
-      postedBy: { name: user?.fullName || 'You', type: 'Alumni' }
+    setPosting(true)
+    setPostError('')
+
+    try {
+      const description = [
+        newScholarship.description?.trim(),
+        newScholarship.benefits ? `Benefits: ${newScholarship.benefits.trim()}` : '',
+        newScholarship.duration ? `Duration: ${newScholarship.duration.trim()}` : '',
+        newScholarship.fundingType ? `Funding Type: ${newScholarship.fundingType.trim()}` : '',
+        newScholarship.location ? `Location: ${newScholarship.location.trim()}` : '',
+        newScholarship.level ? `Level: ${newScholarship.level.trim()}` : '',
+      ].filter(Boolean).join('\n')
+
+      const eligibility = [
+        newScholarship.eligibility?.trim(),
+        newScholarship.level ? `Preferred level: ${newScholarship.level.trim()}` : '',
+      ].filter(Boolean).join('\n')
+
+      const payload = {
+        title: newScholarship.name.trim(),
+        organization: user?.fullName ? `${user.fullName} (CUET Alumni)` : 'CUET Alumni Network',
+        amount: newScholarship.fundingDetails.trim(),
+        eligibility,
+        description,
+        deadline: newScholarship.deadline || undefined,
+        link: newScholarship.link.trim(),
+      }
+
+      await scholarshipsAPI.create(payload)
+      scholarshipsCacheRef.current.delete(SCHOLARSHIPS_CACHE_KEY)
+      await fetchScholarships(true)
+
+      setNewScholarship({
+        name: '',
+        level: '',
+        location: '',
+        fundingType: '',
+        duration: '',
+        fundingDetails: '',
+        deadline: '',
+        link: '',
+        eligibility: '',
+        benefits: '',
+        description: ''
+      })
+      setShowPostModal(false)
+    } catch (error) {
+      console.error('Error posting scholarship:', error)
+      setPostError(error?.message || 'Failed to post scholarship. Please try again.')
+    } finally {
+      setPosting(false)
     }
-    setScholarships([scholarship, ...scholarships])
-    setNewScholarship({ 
-      name: '', 
-      level: '', 
-      location: '', 
-      fundingType: '', 
-      duration: '',
-      fundingDetails: '', 
-      deadline: '', 
-      link: '',
-      eligibility: '',
-      benefits: '',
-      description: '' 
-    })
-    setShowPostModal(false)
   }
 
-  const filteredScholarships = scholarships
+  const filteredScholarships = useMemo(() => {
+    const search = normalizeText(filters.search)
+    const type = normalizeText(filters.type)
+    const location = normalizeText(filters.location)
+    const experience = normalizeText(filters.experience)
+    const role = normalizeText(filters.role)
+
+    return scholarships.filter((scholarship) => {
+      if (search && !scholarship.searchText.includes(search)) return false
+      if (type && scholarship.fundingValue !== type) return false
+      if (location && !scholarship.locationTags.includes(location)) return false
+      if (experience && !scholarship.levelTags.includes(experience)) return false
+      if (role && scholarship.postedByRole !== role) return false
+      return true
+    })
+  }, [scholarships, filters.search, filters.type, filters.location, filters.experience, filters.role])
 
   return (
     <div className="py-16 bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -199,7 +352,14 @@ function Scholarships() {
             {scholarships.map(s => s.scholarshipImage && <img key={s.id} src={s.scholarshipImage} alt="Scholarship" className="h-12 w-12 rounded object-cover mr-2 inline-block" />)}
           </div>
           <button 
-            onClick={() => isLoggedIn ? setShowPostModal(true) : navigate('/login')}
+            onClick={() => {
+              if (!isLoggedIn) {
+                navigate('/login')
+                return
+              }
+              setPostError('')
+              setShowPostModal(true)
+            }}
             className="mt-4 md:mt-0 btn-primary flex items-center gap-2"
           >
             <i className="fas fa-plus"></i> Post a Scholarship
@@ -263,7 +423,7 @@ function Scholarships() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white">Post a Scholarship Opportunity</h2>
-                <button onClick={() => setShowPostModal(false)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => { setPostError(''); setShowPostModal(false) }} className="text-gray-400 hover:text-gray-600">
                   <i className="fas fa-times text-xl"></i>
                 </button>
               </div>
@@ -331,9 +491,12 @@ function Scholarships() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description *</label>
                   <textarea rows={3} required value={newScholarship.description} onChange={(e) => setNewScholarship({...newScholarship, description: e.target.value})} className="input-professional" placeholder="Provide additional details about the scholarship"></textarea>
                 </div>
+                {postError && (
+                  <p className="text-sm text-red-600 dark:text-red-400">{postError}</p>
+                )}
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setShowPostModal(false)} className="flex-1 btn-secondary">Cancel</button>
-                  <button type="submit" className="flex-1 btn-primary">Post Scholarship</button>
+                  <button type="button" onClick={() => { setPostError(''); setShowPostModal(false) }} className="flex-1 btn-secondary">Cancel</button>
+                  <button type="submit" disabled={posting} className="flex-1 btn-primary disabled:opacity-60 disabled:cursor-not-allowed">{posting ? 'Posting...' : 'Post Scholarship'}</button>
                 </div>
               </form>
             </div>

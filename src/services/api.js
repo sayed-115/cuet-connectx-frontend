@@ -1,22 +1,21 @@
 // API Service for CUET-ConnectX
-const RAILWAY_API_URL = 'https://cuet-connectx-api-production.up.railway.app/api';
-let configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
-const isLegacyRenderApi = /cuet-connectx-backend.*\.onrender\.com\/api/i.test(configuredApiUrl);
+const LOCAL_API_URL = 'http://localhost:5000/api';
+const PROD_API_URL  = 'https://cuet-connectx-backend.onrender.com/api'; // fallback if VITE_API_URL unset in prod
 
-if (import.meta.env.PROD && isLegacyRenderApi) {
-  console.warn(`[API] Legacy Render API detected (${configuredApiUrl}). Switching to Railway API: ${RAILWAY_API_URL}`);
-  configuredApiUrl = RAILWAY_API_URL;
-}
-
-const fallbackApiUrl = import.meta.env.DEV
-  ? 'http://localhost:5000/api'
-  : RAILWAY_API_URL;
-const API_URL = configuredApiUrl || fallbackApiUrl;
+const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+const API_URL = configuredApiUrl || (import.meta.env.DEV ? LOCAL_API_URL : PROD_API_URL);
 
 function normalizeFilterValue(value) {
   if (typeof value === 'string') return value.toLowerCase().trim();
   if (typeof value === 'number') return String(value);
   return value;
+}
+
+function getAuthToken() {
+  const raw = localStorage.getItem('token');
+  if (!raw || typeof raw !== 'string') return '';
+  // Be resilient to accidental quoted token values from older builds/storage.
+  return raw.trim().replace(/^"+|"+$/g, '');
 }
 
 function cleanQueryParams(params = {}) {
@@ -36,6 +35,10 @@ if (!configuredApiUrl) {
 
 if (import.meta.env.PROD && /localhost/i.test(API_URL)) {
   console.error('[API] Production build is pointing to localhost. Set VITE_API_URL to your deployed backend URL.');
+}
+
+if (import.meta.env.DEV) {
+  console.debug(`[API] Active API URL: ${API_URL}`);
 }
 
 // Custom error class for API errors
@@ -59,13 +62,13 @@ const handleLogout = () => {
 
 // Helper function for API calls
 async function apiCall(endpoint, options = {}) {
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
 
   const method = options.method || 'GET';
   if (import.meta.env.DEV) {
     console.debug(`[API] ${method} ${endpoint}`);
   }
-  
+
   const config = {
     headers: {
       'Content-Type': 'application/json',
@@ -84,7 +87,7 @@ async function apiCall(endpoint, options = {}) {
       0
     );
   }
-  
+
   // Handle empty responses
   let data = {};
   const contentType = response.headers.get('content-type');
@@ -96,6 +99,7 @@ async function apiCall(endpoint, options = {}) {
     console.debug('[API] Response', {
       method,
       endpoint,
+      apiBaseUrl: API_URL,
       status: response.status,
       ok: response.ok,
     });
@@ -105,12 +109,10 @@ async function apiCall(endpoint, options = {}) {
     // Handle 401 Unauthorized - auto logout
     if (response.status === 401) {
       const isExpired = data.expired === true;
-      if (isExpired || data.message?.includes('expired') || data.message?.includes('Password recently changed')) {
-        handleLogout();
-      }
+      handleLogout();
       throw new ApiError(data.message || 'Session expired. Please login again.', 401, isExpired);
     }
-    
+
     // Handle 403 Forbidden
     if (response.status === 403) {
       const err = new ApiError(data.message || 'You are not authorized to perform this action.', 403);
@@ -118,7 +120,7 @@ async function apiCall(endpoint, options = {}) {
       if (data.email) err.email = data.email;
       throw err;
     }
-    
+
     throw new ApiError(data.message || 'Something went wrong', response.status);
   }
 
@@ -178,7 +180,7 @@ export const usersAPI = {
     body: JSON.stringify(data),
   }),
   uploadImage: async (formData) => {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     let response;
     try {
       response = await fetch(`${API_URL}/users/profile/image`, {
@@ -190,6 +192,10 @@ export const usersAPI = {
       throw new ApiError('Unable to connect to the server. Please try again.', 0);
     }
     const data = await response.json();
+    if (response.status === 401) {
+      handleLogout();
+      throw new ApiError(data.message || 'Session expired. Please login again.', 401, data.expired === true);
+    }
     if (!response.ok) throw new ApiError(data.message || 'Upload failed', response.status);
     return data;
   },
@@ -286,7 +292,7 @@ export const postsAPI = {
 
 // Helper: upload a file via FormData to an endpoint (no JSON content-type)
 async function uploadFile(endpoint, file, fieldName = 'image') {
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
   const formData = new FormData();
   formData.append(fieldName, file);
   let response;
@@ -300,6 +306,10 @@ async function uploadFile(endpoint, file, fieldName = 'image') {
     throw new ApiError('Unable to connect to the server. Please try again.', 0);
   }
   const data = await response.json();
+  if (response.status === 401) {
+    handleLogout();
+    throw new ApiError(data.message || 'Session expired. Please login again.', 401, data.expired === true);
+  }
   if (!response.ok) throw new ApiError(data.message || 'Upload failed', response.status);
   return data;
 }

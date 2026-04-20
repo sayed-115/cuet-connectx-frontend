@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { jobsAPI } from '../services/api'
@@ -14,9 +14,11 @@ const INITIAL_FILTERS = {
   role: '',
 }
 
+const normalizeText = (value) => String(value || '').toLowerCase().trim()
+const JOBS_CACHE_KEY = 'all-jobs'
+
 function Jobs() {
   const [filters, setFilters] = useState(INITIAL_FILTERS)
-  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [appliedJobs, setAppliedJobs] = useState([])
   const [savedJobs, setSavedJobs] = useState([])
   const [showPostModal, setShowPostModal] = useState(false)
@@ -24,48 +26,80 @@ function Jobs() {
   const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [posting, setPosting] = useState(false)
+  const [postError, setPostError] = useState('')
   const jobsCacheRef = useRef(new Map())
   const { isLoggedIn } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(filters.search.toLowerCase().trim())
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [filters.search])
-
-  const activeFilters = useMemo(() => ({
-    search: debouncedSearch,
-    type: filters.type,
-    location: filters.location,
-    experience: filters.experience,
-    role: filters.role,
-  }), [debouncedSearch, filters.type, filters.location, filters.experience, filters.role])
-
-  useEffect(() => {
     console.debug('[Jobs] selected filters', filters)
   }, [filters])
 
-  // Fetch jobs from API with combined filters
-  useEffect(() => {
-    const fetchJobs = async () => {
-      const cacheKey = JSON.stringify(activeFilters)
-      if (jobsCacheRef.current.has(cacheKey)) {
-        const cached = jobsCacheRef.current.get(cacheKey)
-        console.debug('[Jobs] cache hit', activeFilters)
-        setJobs(cached)
-        setLoading(false)
-        return
+  const getTimeAgo = useCallback((dateString) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffTime = Math.abs(now - date)
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return 'Yesterday'
+    if (diffDays < 7) return `${diffDays} days ago`
+    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
+    return `${Math.ceil(diffDays / 30)} months ago`
+  }, [])
+
+  const fetchJobs = useCallback(async (forceRefresh = false) => {
+    if (!forceRefresh && jobsCacheRef.current.has(JOBS_CACHE_KEY)) {
+      const cached = jobsCacheRef.current.get(JOBS_CACHE_KEY)
+      console.debug('[Jobs] cache hit (all-jobs)')
+      setJobs(cached)
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+      console.debug('[Jobs] API request params', { limit: 100, page: 'all' })
+
+      const limit = 100
+      let page = 1
+      let total = 0
+      const allJobs = []
+
+      while (page <= 50) {
+        const response = await jobsAPI.getAll({ limit, page })
+        if (!response.success) break
+
+        const pageJobs = Array.isArray(response.jobs) ? response.jobs : []
+        allJobs.push(...pageJobs)
+
+        total = response.pagination?.total || allJobs.length
+        const reachedTotal = allJobs.length >= total
+        const noMorePages = pageJobs.length < limit
+        if (reachedTotal || noMorePages) break
+
+        page += 1
       }
 
-      try {
-        setLoading(true)
-        console.debug('[Jobs] API request params', activeFilters)
-        const response = await jobsAPI.getAll(activeFilters)
-        if (response.success) {
-          const formattedJobs = response.jobs.map(job => ({
+      if (allJobs.length > 0 || total === 0) {
+        const formattedJobs = allJobs.map((job) => {
+          const normalizedType = normalizeText(job.type || 'Full-time')
+          const normalizedLocation = normalizeText(job.location || 'Remote')
+          const normalizedExperience = normalizeText(job.experience || 'Entry Level')
+          const postedByRole = normalizeText(job.postedBy?.role || job.postedBy?.userType || 'alumni')
+          const searchText = normalizeText([
+            job.title,
+            job.company,
+            job.location,
+            job.description,
+            ...(job.requirements || []),
+            ...(job.responsibilities || []),
+            ...(job.skills || []),
+            job.postedBy?.fullName,
+            job.postedBy?.batch,
+          ].filter(Boolean).join(' '))
+
+          return {
             id: job._id,
             title: job.title,
             company: job.company,
@@ -76,45 +110,46 @@ function Jobs() {
             experience: job.experience || 'Entry Level',
             deadline: job.applicationDeadline ? new Date(job.applicationDeadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Open',
             postedByAlumni: (job.postedBy?.role || job.postedBy?.userType || '').toLowerCase() === 'alumni',
-            postedBy: job.postedBy ? { 
-              name: job.postedBy.fullName, 
-              type: 'Alumni', 
-              batch: job.postedBy.batch,
-              position: `${job.postedBy.currentPosition || ''} at ${job.postedBy.company || ''}`
-            } : { name: 'CUET Alumni', type: 'Alumni' },
+            postedBy: job.postedBy
+              ? {
+                name: job.postedBy.fullName,
+                type: 'Alumni',
+                batch: job.postedBy.batch,
+                position: `${job.postedBy.currentPosition || ''} at ${job.postedBy.company || ''}`
+              }
+              : { name: 'CUET Alumni', type: 'Alumni' },
             requirements: job.requirements || [],
             responsibilities: job.responsibilities || [],
             skills: job.skills || [],
             applicationLink: job.applyLink || '#',
             icon: 'fa-briefcase',
-            iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
-          }))
+            iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400',
+            searchText,
+            typeValue: normalizedType,
+            locationValue: normalizedLocation,
+            experienceValue: normalizedExperience,
+            postedByRole,
+          }
+        })
 
-          console.debug('[Jobs] response count', formattedJobs.length)
-          jobsCacheRef.current.set(cacheKey, formattedJobs)
-          setJobs(formattedJobs)
-        }
-      } catch (error) {
-        console.error('Error fetching jobs:', error)
-      } finally {
-        setLoading(false)
+        console.debug('[Jobs] response count', formattedJobs.length)
+        jobsCacheRef.current.set(JOBS_CACHE_KEY, formattedJobs)
+        setJobs(formattedJobs)
+      } else {
+        jobsCacheRef.current.set(JOBS_CACHE_KEY, [])
+        setJobs([])
       }
+    } catch (error) {
+      console.error('Error fetching jobs:', error)
+    } finally {
+      setLoading(false)
     }
-    fetchJobs()
-  }, [activeFilters])
+  }, [getTimeAgo])
 
-  // Helper function to get time ago
-  const getTimeAgo = (dateString) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now - date)
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    if (diffDays === 0) return 'Today'
-    if (diffDays === 1) return 'Yesterday'
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
-  }
+  // Fetch jobs from API with combined filters
+  useEffect(() => {
+    fetchJobs()
+  }, [fetchJobs])
 
   const jobTypes = [
     { label: 'All Job Types', value: '' },
@@ -161,36 +196,69 @@ function Jobs() {
     }
   }
 
-  const handlePostJob = (e) => {
+  const handlePostJob = async (e) => {
     e.preventDefault()
     if (!isLoggedIn) {
       navigate('/login')
       return
     }
-    const job = {
-      id: jobs.length + 1,
-      title: newJob.title,
-      company: newJob.company,
-      location: newJob.location,
-      type: newJob.type,
-      experience: newJob.experience,
-      salary: 'Competitive',
-      description: newJob.responsibilities,
-      requirements: newJob.requirements,
-      applicationLink: newJob.applicationLink,
-      deadline: newJob.deadline,
-      posted: 'Just now',
-      postedByAlumni: true,
-      postedBy: { name: 'You', type: 'Alumni', batch: '2020' },
-      icon: 'fa-briefcase',
-      iconColor: 'bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400'
+    setPosting(true)
+    setPostError('')
+
+    try {
+      const requirements = newJob.requirements
+        .split(/\r?\n|,/)
+        .map((value) => value.trim())
+        .filter(Boolean)
+
+      const responsibilities = newJob.responsibilities
+        .split(/\r?\n|,/)
+        .map((value) => value.trim())
+        .filter(Boolean)
+
+      const payload = {
+        title: newJob.title.trim(),
+        company: newJob.company.trim(),
+        location: newJob.location.trim(),
+        type: newJob.type || 'Full-time',
+        experience: newJob.experience || 'Entry Level',
+        description: newJob.responsibilities.trim() || newJob.requirements.trim(),
+        requirements,
+        responsibilities,
+        deadline: newJob.deadline || undefined,
+        applyLink: newJob.applicationLink.trim(),
+      }
+
+      await jobsAPI.create(payload)
+      jobsCacheRef.current.delete(JOBS_CACHE_KEY)
+      await fetchJobs(true)
+
+      setNewJob({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
+      setShowPostModal(false)
+    } catch (error) {
+      console.error('Error posting job:', error)
+      setPostError(error?.message || 'Failed to post job. Please try again.')
+    } finally {
+      setPosting(false)
     }
-    setJobs([job, ...jobs])
-    setNewJob({ title: '', company: '', location: '', type: '', experience: '', deadline: '', requirements: '', responsibilities: '', applicationLink: '' })
-    setShowPostModal(false)
   }
 
-  const filteredJobs = jobs
+  const filteredJobs = useMemo(() => {
+    const search = normalizeText(filters.search)
+    const type = normalizeText(filters.type)
+    const location = normalizeText(filters.location)
+    const experience = normalizeText(filters.experience)
+    const role = normalizeText(filters.role)
+
+    return jobs.filter((job) => {
+      if (search && !job.searchText.includes(search)) return false
+      if (type && job.typeValue !== type) return false
+      if (location && !job.locationValue.includes(location)) return false
+      if (experience && !job.experienceValue.includes(experience)) return false
+      if (role && job.postedByRole !== role) return false
+      return true
+    })
+  }, [jobs, filters.search, filters.type, filters.location, filters.experience, filters.role])
 
   return (
     <div className="py-16 bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -202,7 +270,14 @@ function Jobs() {
             {jobs.map(job => job.jobImage && <img key={job.id} src={job.jobImage} alt="Job" className="h-12 w-12 rounded object-cover mr-2 inline-block" />)}
           </div>
           <button 
-            onClick={() => isLoggedIn ? setShowPostModal(true) : navigate('/login')}
+            onClick={() => {
+              if (!isLoggedIn) {
+                navigate('/login')
+                return
+              }
+              setPostError('')
+              setShowPostModal(true)
+            }}
             className="mt-4 md:mt-0 btn-primary flex items-center gap-2"
           >
             <i className="fas fa-plus"></i> Post a Job
@@ -266,7 +341,7 @@ function Jobs() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white">Post a Job Opportunity</h2>
-                <button onClick={() => setShowPostModal(false)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => { setPostError(''); setShowPostModal(false) }} className="text-gray-400 hover:text-gray-600">
                   <i className="fas fa-times text-xl"></i>
                 </button>
               </div>
@@ -327,9 +402,12 @@ function Jobs() {
                   <input type="url" required value={newJob.applicationLink} onChange={(e) => setNewJob({...newJob, applicationLink: e.target.value})} className="input-professional" placeholder="https://example.com/apply" />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">URL where applicants can apply for this position</p>
                 </div>
+                {postError && (
+                  <p className="text-sm text-red-600 dark:text-red-400">{postError}</p>
+                )}
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setShowPostModal(false)} className="flex-1 btn-secondary">Cancel</button>
-                  <button type="submit" className="flex-1 btn-primary">Post Job</button>
+                  <button type="button" onClick={() => { setPostError(''); setShowPostModal(false) }} className="flex-1 btn-secondary">Cancel</button>
+                  <button type="submit" disabled={posting} className="flex-1 btn-primary disabled:opacity-60 disabled:cursor-not-allowed">{posting ? 'Posting...' : 'Post Job'}</button>
                 </div>
               </form>
             </div>
