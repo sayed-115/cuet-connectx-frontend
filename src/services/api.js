@@ -1,21 +1,56 @@
 // API Service for CUET-ConnectX
+const RENDER_API_URL = 'https://cuet-connectx-backend.onrender.com/api';
 const LOCAL_API_URL = 'http://localhost:5000/api';
-const PROD_API_URL  = 'https://cuet-connectx-backend.onrender.com/api'; // fallback if VITE_API_URL unset in prod
 
 const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
-const API_URL = configuredApiUrl || (import.meta.env.DEV ? LOCAL_API_URL : PROD_API_URL);
+const fallbackApiUrls = import.meta.env.DEV
+  ? [LOCAL_API_URL]
+  : [RENDER_API_URL];
+
+const apiUrls = Array.from(new Set([
+  configuredApiUrl,
+  ...fallbackApiUrls,
+].filter(Boolean)));
+
+if (apiUrls.length === 0) {
+  apiUrls.push(LOCAL_API_URL);
+}
+
+let activeApiUrl = apiUrls[0];
+
+function getApiUrlsInPriorityOrder() {
+  return [activeApiUrl, ...apiUrls.filter((url) => url !== activeApiUrl)];
+}
+
+async function fetchWithApiFallback(endpoint, config) {
+  let lastError = null;
+  const orderedApiUrls = getApiUrlsInPriorityOrder();
+
+  for (const baseUrl of orderedApiUrls) {
+    try {
+      const response = await fetch(`${baseUrl}${endpoint}`, config);
+
+      if (baseUrl !== activeApiUrl) {
+        console.warn(`[API] Switched API base URL to: ${baseUrl}`);
+        activeApiUrl = baseUrl;
+      }
+
+      return response;
+    } catch (err) {
+      lastError = err;
+      if (import.meta.env.DEV) {
+        console.warn(`[API] Network error on ${baseUrl}${endpoint}. Trying next candidate.`);
+      }
+    }
+  }
+
+  throw lastError || new Error('All API endpoints are unreachable.');
+}
 
 function normalizeFilterValue(value) {
   if (typeof value === 'string') return value.toLowerCase().trim();
   if (typeof value === 'number') return String(value);
   return value;
-}
-
-function getAuthToken() {
-  const raw = localStorage.getItem('token');
-  if (!raw || typeof raw !== 'string') return '';
-  // Be resilient to accidental quoted token values from older builds/storage.
-  return raw.trim().replace(/^"+|"+$/g, '');
 }
 
 function cleanQueryParams(params = {}) {
@@ -30,15 +65,15 @@ function cleanQueryParams(params = {}) {
 }
 
 if (!configuredApiUrl) {
-  console.warn(`[API] VITE_API_URL is not set. Using fallback API URL: ${API_URL}`);
+  console.warn(`[API] VITE_API_URL is not set. Using fallback API URLs: ${apiUrls.join(', ')}`);
 }
 
-if (import.meta.env.PROD && /localhost/i.test(API_URL)) {
+if (import.meta.env.PROD && apiUrls.some((url) => /localhost/i.test(url))) {
   console.error('[API] Production build is pointing to localhost. Set VITE_API_URL to your deployed backend URL.');
 }
 
 if (import.meta.env.DEV) {
-  console.debug(`[API] Active API URL: ${API_URL}`);
+  console.debug(`[API] Candidate API URLs: ${apiUrls.join(', ')}`);
 }
 
 // Custom error class for API errors
@@ -62,13 +97,13 @@ const handleLogout = () => {
 
 // Helper function for API calls
 async function apiCall(endpoint, options = {}) {
-  const token = getAuthToken();
+  const token = localStorage.getItem('token');
 
   const method = options.method || 'GET';
   if (import.meta.env.DEV) {
     console.debug(`[API] ${method} ${endpoint}`);
   }
-
+  
   const config = {
     headers: {
       'Content-Type': 'application/json',
@@ -80,14 +115,14 @@ async function apiCall(endpoint, options = {}) {
 
   let response;
   try {
-    response = await fetch(`${API_URL}${endpoint}`, config);
+    response = await fetchWithApiFallback(endpoint, config);
   } catch (err) {
     throw new ApiError(
       'Unable to connect to the server. Please check your internet connection and try again.',
       0
     );
   }
-
+  
   // Handle empty responses
   let data = {};
   const contentType = response.headers.get('content-type');
@@ -99,7 +134,7 @@ async function apiCall(endpoint, options = {}) {
     console.debug('[API] Response', {
       method,
       endpoint,
-      apiBaseUrl: API_URL,
+      apiBaseUrl: activeApiUrl,
       status: response.status,
       ok: response.ok,
     });
@@ -109,10 +144,12 @@ async function apiCall(endpoint, options = {}) {
     // Handle 401 Unauthorized - auto logout
     if (response.status === 401) {
       const isExpired = data.expired === true;
-      handleLogout();
+      if (isExpired || data.message?.includes('expired') || data.message?.includes('Password recently changed')) {
+        handleLogout();
+      }
       throw new ApiError(data.message || 'Session expired. Please login again.', 401, isExpired);
     }
-
+    
     // Handle 403 Forbidden
     if (response.status === 403) {
       const err = new ApiError(data.message || 'You are not authorized to perform this action.', 403);
@@ -120,7 +157,7 @@ async function apiCall(endpoint, options = {}) {
       if (data.email) err.email = data.email;
       throw err;
     }
-
+    
     throw new ApiError(data.message || 'Something went wrong', response.status);
   }
 
@@ -180,10 +217,10 @@ export const usersAPI = {
     body: JSON.stringify(data),
   }),
   uploadImage: async (formData) => {
-    const token = getAuthToken();
+    const token = localStorage.getItem('token');
     let response;
     try {
-      response = await fetch(`${API_URL}/users/profile/image`, {
+      response = await fetchWithApiFallback('/users/profile/image', {
         method: 'PUT',
         headers: { ...(token && { Authorization: `Bearer ${token}` }) },
         body: formData,
@@ -192,10 +229,6 @@ export const usersAPI = {
       throw new ApiError('Unable to connect to the server. Please try again.', 0);
     }
     const data = await response.json();
-    if (response.status === 401) {
-      handleLogout();
-      throw new ApiError(data.message || 'Session expired. Please login again.', 401, data.expired === true);
-    }
     if (!response.ok) throw new ApiError(data.message || 'Upload failed', response.status);
     return data;
   },
@@ -292,12 +325,12 @@ export const postsAPI = {
 
 // Helper: upload a file via FormData to an endpoint (no JSON content-type)
 async function uploadFile(endpoint, file, fieldName = 'image') {
-  const token = getAuthToken();
+  const token = localStorage.getItem('token');
   const formData = new FormData();
   formData.append(fieldName, file);
   let response;
   try {
-    response = await fetch(`${API_URL}${endpoint}`, {
+    response = await fetchWithApiFallback(endpoint, {
       method: 'POST',
       headers: { ...(token && { Authorization: `Bearer ${token}` }) },
       body: formData,
@@ -306,10 +339,6 @@ async function uploadFile(endpoint, file, fieldName = 'image') {
     throw new ApiError('Unable to connect to the server. Please try again.', 0);
   }
   const data = await response.json();
-  if (response.status === 401) {
-    handleLogout();
-    throw new ApiError(data.message || 'Session expired. Please login again.', 401, data.expired === true);
-  }
   if (!response.ok) throw new ApiError(data.message || 'Upload failed', response.status);
   return data;
 }

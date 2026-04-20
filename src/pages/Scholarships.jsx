@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { scholarshipsAPI } from '../services/api'
@@ -43,7 +43,6 @@ const LOCATION_LABELS = LOCATION_MATCHERS.reduce((acc, item) => {
 }, { international: 'International' })
 
 const normalizeText = (value) => String(value || '').toLowerCase().trim()
-const SCHOLARSHIPS_CACHE_KEY = 'all-scholarships'
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -171,6 +170,7 @@ function Scholarships() {
   const [showDetailModal, setShowDetailModal] = useState(null)
   const [newScholarship, setNewScholarship] = useState({ 
     name: '', 
+    organization: '',
     level: '', 
     location: '', 
     fundingType: '', 
@@ -184,50 +184,48 @@ function Scholarships() {
   })
   const [scholarships, setScholarships] = useState([])
   const [loading, setLoading] = useState(true)
-  const [posting, setPosting] = useState(false)
-  const [postError, setPostError] = useState('')
+  const [postingScholarship, setPostingScholarship] = useState(false)
+  const [postScholarshipError, setPostScholarshipError] = useState('')
+  const [refreshNonce, setRefreshNonce] = useState(0)
   const scholarshipsCacheRef = useRef(new Map())
-  const { isLoggedIn, user } = useAuth()
+  const { isLoggedIn } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
     console.debug('[Scholarships] selected filters', filters)
   }, [filters])
 
-  const fetchScholarships = useCallback(async (forceRefresh = false) => {
-    if (!forceRefresh && scholarshipsCacheRef.current.has(SCHOLARSHIPS_CACHE_KEY)) {
-      const cached = scholarshipsCacheRef.current.get(SCHOLARSHIPS_CACHE_KEY)
-      console.debug('[Scholarships] cache hit (all-scholarships)')
-      setScholarships(cached)
-      setLoading(false)
-      return
-    }
-
-    try {
-      setLoading(true)
-      console.debug('[Scholarships] API request params', { limit: 200 })
-      const response = await scholarshipsAPI.getAll({ limit: 200 })
-      if (response.success) {
-        const formattedScholarships = response.scholarships.map((s) => toScholarshipViewModel(s))
-
-        console.debug('[Scholarships] response count', formattedScholarships.length)
-        scholarshipsCacheRef.current.set(SCHOLARSHIPS_CACHE_KEY, formattedScholarships)
-        setScholarships(formattedScholarships)
-      } else {
-        scholarshipsCacheRef.current.set(SCHOLARSHIPS_CACHE_KEY, [])
-        setScholarships([])
-      }
-    } catch (error) {
-      console.error('Error fetching scholarships:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
   // Fetch scholarships from API
   useEffect(() => {
+    const fetchScholarships = async () => {
+      const cacheKey = 'all-scholarships'
+      if (scholarshipsCacheRef.current.has(cacheKey)) {
+        const cached = scholarshipsCacheRef.current.get(cacheKey)
+        console.debug('[Scholarships] cache hit (all-scholarships)')
+        setScholarships(cached)
+        setLoading(false)
+        return
+      }
+
+      try {
+        setLoading(true)
+        console.debug('[Scholarships] API request params', { limit: 200 })
+        const response = await scholarshipsAPI.getAll({ limit: 200 })
+        if (response.success) {
+          const formattedScholarships = response.scholarships.map((s) => toScholarshipViewModel(s))
+
+          console.debug('[Scholarships] response count', formattedScholarships.length)
+          scholarshipsCacheRef.current.set(cacheKey, formattedScholarships)
+          setScholarships(formattedScholarships)
+        }
+      } catch (error) {
+        console.error('Error fetching scholarships:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
     fetchScholarships()
-  }, [fetchScholarships])
+  }, [refreshNonce])
 
   const levels = [
     { label: 'All Levels', value: '' },
@@ -271,57 +269,51 @@ function Scholarships() {
       navigate('/login')
       return
     }
-    setPosting(true)
-    setPostError('')
 
     try {
-      const description = [
+      setPostingScholarship(true)
+      setPostScholarshipError('')
+
+      const combinedDescription = [
         newScholarship.description?.trim(),
-        newScholarship.benefits ? `Benefits: ${newScholarship.benefits.trim()}` : '',
-        newScholarship.duration ? `Duration: ${newScholarship.duration.trim()}` : '',
-        newScholarship.fundingType ? `Funding Type: ${newScholarship.fundingType.trim()}` : '',
-        newScholarship.location ? `Location: ${newScholarship.location.trim()}` : '',
-        newScholarship.level ? `Level: ${newScholarship.level.trim()}` : '',
-      ].filter(Boolean).join('\n')
+        newScholarship.benefits?.trim() ? `Benefits: ${newScholarship.benefits.trim()}` : '',
+        newScholarship.level?.trim() ? `Level: ${newScholarship.level.trim()}` : '',
+        newScholarship.location?.trim() ? `Location: ${newScholarship.location.trim()}` : '',
+        newScholarship.duration?.trim() ? `Duration: ${newScholarship.duration.trim()}` : '',
+        newScholarship.fundingType?.trim() ? `Funding Type: ${newScholarship.fundingType.trim()}` : '',
+      ].filter(Boolean).join('\n\n')
 
-      const eligibility = [
-        newScholarship.eligibility?.trim(),
-        newScholarship.level ? `Preferred level: ${newScholarship.level.trim()}` : '',
-      ].filter(Boolean).join('\n')
-
-      const payload = {
+      await scholarshipsAPI.create({
         title: newScholarship.name.trim(),
-        organization: user?.fullName ? `${user.fullName} (CUET Alumni)` : 'CUET Alumni Network',
+        organization: newScholarship.organization.trim(),
         amount: newScholarship.fundingDetails.trim(),
-        eligibility,
-        description,
-        deadline: newScholarship.deadline || undefined,
+        eligibility: newScholarship.eligibility.trim(),
+        description: combinedDescription,
+        deadline: newScholarship.deadline || null,
         link: newScholarship.link.trim(),
-      }
+      })
 
-      await scholarshipsAPI.create(payload)
-      scholarshipsCacheRef.current.delete(SCHOLARSHIPS_CACHE_KEY)
-      await fetchScholarships(true)
-
-      setNewScholarship({
-        name: '',
-        level: '',
-        location: '',
-        fundingType: '',
+      scholarshipsCacheRef.current.clear()
+      setRefreshNonce((prev) => prev + 1)
+      setNewScholarship({ 
+        name: '', 
+        organization: '',
+        level: '', 
+        location: '', 
+        fundingType: '', 
         duration: '',
-        fundingDetails: '',
-        deadline: '',
+        fundingDetails: '', 
+        deadline: '', 
         link: '',
         eligibility: '',
         benefits: '',
-        description: ''
+        description: '' 
       })
       setShowPostModal(false)
     } catch (error) {
-      console.error('Error posting scholarship:', error)
-      setPostError(error?.message || 'Failed to post scholarship. Please try again.')
+      setPostScholarshipError(error?.message || 'Failed to post scholarship. Please try again.')
     } finally {
-      setPosting(false)
+      setPostingScholarship(false)
     }
   }
 
@@ -352,14 +344,7 @@ function Scholarships() {
             {scholarships.map(s => s.scholarshipImage && <img key={s.id} src={s.scholarshipImage} alt="Scholarship" className="h-12 w-12 rounded object-cover mr-2 inline-block" />)}
           </div>
           <button 
-            onClick={() => {
-              if (!isLoggedIn) {
-                navigate('/login')
-                return
-              }
-              setPostError('')
-              setShowPostModal(true)
-            }}
+            onClick={() => isLoggedIn ? setShowPostModal(true) : navigate('/login')}
             className="mt-4 md:mt-0 btn-primary flex items-center gap-2"
           >
             <i className="fas fa-plus"></i> Post a Scholarship
@@ -423,14 +408,23 @@ function Scholarships() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white">Post a Scholarship Opportunity</h2>
-                <button onClick={() => { setPostError(''); setShowPostModal(false) }} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => setShowPostModal(false)} className="text-gray-400 hover:text-gray-600">
                   <i className="fas fa-times text-xl"></i>
                 </button>
               </div>
               <form onSubmit={handlePostScholarship} className="space-y-4">
+                {postScholarshipError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-300">
+                    {postScholarshipError}
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Scholarship Name *</label>
                   <input type="text" required value={newScholarship.name} onChange={(e) => setNewScholarship({...newScholarship, name: e.target.value})} className="input-professional" placeholder="Enter scholarship name" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Organization *</label>
+                  <input type="text" required value={newScholarship.organization} onChange={(e) => setNewScholarship({...newScholarship, organization: e.target.value})} className="input-professional" placeholder="University, foundation, or institution" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -491,12 +485,11 @@ function Scholarships() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description *</label>
                   <textarea rows={3} required value={newScholarship.description} onChange={(e) => setNewScholarship({...newScholarship, description: e.target.value})} className="input-professional" placeholder="Provide additional details about the scholarship"></textarea>
                 </div>
-                {postError && (
-                  <p className="text-sm text-red-600 dark:text-red-400">{postError}</p>
-                )}
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => { setPostError(''); setShowPostModal(false) }} className="flex-1 btn-secondary">Cancel</button>
-                  <button type="submit" disabled={posting} className="flex-1 btn-primary disabled:opacity-60 disabled:cursor-not-allowed">{posting ? 'Posting...' : 'Post Scholarship'}</button>
+                  <button type="button" onClick={() => setShowPostModal(false)} className="flex-1 btn-secondary">Cancel</button>
+                  <button type="submit" disabled={postingScholarship} className="flex-1 btn-primary disabled:opacity-70 disabled:cursor-not-allowed">
+                    {postingScholarship ? 'Posting...' : 'Post Scholarship'}
+                  </button>
                 </div>
               </form>
             </div>
