@@ -266,6 +266,12 @@ export const jobsAPI = {
   delete: (id) => apiCall(`/jobs/${id}`, {
     method: 'DELETE',
   }),
+  approve: (id) => apiCall(`/jobs/${id}/approve`, {
+    method: 'PUT',
+  }),
+  reject: (id) => apiCall(`/jobs/${id}/reject`, {
+    method: 'PUT',
+  }),
 };
 
 // Scholarships API
@@ -289,6 +295,12 @@ export const scholarshipsAPI = {
   }),
   delete: (id) => apiCall(`/scholarships/${id}`, {
     method: 'DELETE',
+  }),
+  approve: (id) => apiCall(`/scholarships/${id}/approve`, {
+    method: 'PUT',
+  }),
+  reject: (id) => apiCall(`/scholarships/${id}/reject`, {
+    method: 'PUT',
   }),
 };
 
@@ -386,6 +398,12 @@ export const adminAPI = {
   deleteJob: (id) => apiCall(`/admin/jobs/${id}`, {
     method: 'DELETE',
   }),
+  approveJob: (id) => apiCall(`/admin/jobs/${id}/approve`, {
+    method: 'PUT',
+  }),
+  rejectJob: (id) => apiCall(`/admin/jobs/${id}/reject`, {
+    method: 'PUT',
+  }),
   // Scholarships
   getScholarships: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
@@ -401,6 +419,12 @@ export const adminAPI = {
   }),
   deleteScholarship: (id) => apiCall(`/admin/scholarships/${id}`, {
     method: 'DELETE',
+  }),
+  approveScholarship: (id) => apiCall(`/admin/scholarships/${id}/approve`, {
+    method: 'PUT',
+  }),
+  rejectScholarship: (id) => apiCall(`/admin/scholarships/${id}/reject`, {
+    method: 'PUT',
   }),
   // Community
   getPosts: (params = {}) => {

@@ -81,11 +81,11 @@ body {
 }
 
 .gradient-text {
-  @apply bg-gradient-to-r from-teal-600 to-teal-400 bg-clip-text text-transparent;
+  @apply bg-linear-to-r from-teal-600 to-teal-400 bg-clip-text text-transparent;
 }
 
 .gradient-text-gold {
-  @apply bg-gradient-to-r from-yellow-500 to-amber-400 bg-clip-text text-transparent;
+  @apply bg-linear-to-r from-yellow-500 to-amber-400 bg-clip-text text-transparent;
 }
 
 /* Professional Card Styles */
@@ -195,7 +195,7 @@ body {
 
 /* Button Styles */
 .btn-primary {
-  @apply px-6 py-3 bg-gradient-to-r from-teal-600 to-teal-500 text-white font-semibold rounded-xl;
+  @apply px-6 py-3 bg-linear-to-r from-teal-600 to-teal-500 text-white font-semibold rounded-xl;
   @apply hover:from-teal-700 hover:to-teal-600 transform hover:scale-[1.02];
   @apply transition-all duration-200 shadow-lg shadow-teal-500/25;
 }

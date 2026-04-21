@@ -9,8 +9,10 @@ function JobsManagement({ showToast }) {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
+  const [statusCounts, setStatusCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -20,23 +22,24 @@ function JobsManagement({ showToast }) {
   const [imagePreview, setImagePreview] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  const loadJobs = useCallback(async (p = page, s = search) => {
+  const loadJobs = useCallback(async (p = page, s = search, status = statusFilter) => {
     setLoading(true);
     try {
-      const res = await adminAPI.getJobs({ page: p, limit: 10, search: s });
+      const res = await adminAPI.getJobs({ page: p, limit: 10, search: s, status });
       setJobs(res.data?.jobs || []);
       setPagination(res.data?.pagination || { page: 1, pages: 1, total: 0 });
+      setStatusCounts(res.data?.statusCounts || { pending: 0, approved: 0, rejected: 0 });
     } catch (err) {
       showToast(err.message || 'Failed to load jobs', 'error');
     } finally {
       setLoading(false);
     }
-  }, [page, search, showToast]);
+  }, [page, search, showToast, statusFilter]);
 
   useEffect(() => {
-    const t = setTimeout(() => loadJobs(page, search), 300);
+    const t = setTimeout(() => loadJobs(page, search, statusFilter), 300);
     return () => clearTimeout(t);
-  }, [page, search]);
+  }, [page, search, statusFilter]);
 
   const openCreate = () => { setEditId(null); setForm(emptyJob); setImageFile(null); setImagePreview(null); setFormOpen(true); };
   const openEdit = (job) => {
@@ -93,7 +96,7 @@ function JobsManagement({ showToast }) {
       setFormOpen(false);
       setForm(emptyJob);
       setEditId(null);
-      loadJobs(page, search);
+      loadJobs(page, search, statusFilter);
     } catch (err) {
       showToast(err.message || 'Failed to save job', 'error');
     } finally {
@@ -108,9 +111,28 @@ function JobsManagement({ showToast }) {
       await adminAPI.deleteJob(deleteTarget._id);
       showToast('Job deleted');
       setDeleteTarget(null);
-      loadJobs(page, search);
+      loadJobs(page, search, statusFilter);
     } catch (err) {
       showToast(err.message || 'Delete failed', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleModeration = async (job, action) => {
+    setActionLoading(true);
+    try {
+      if (action === 'approve') {
+        await adminAPI.approveJob(job._id);
+        showToast('Job approved');
+      } else {
+        await adminAPI.rejectJob(job._id);
+        showToast('Job rejected');
+      }
+
+      loadJobs(page, search, statusFilter);
+    } catch (err) {
+      showToast(err.message || `Failed to ${action} job`, 'error');
     } finally {
       setActionLoading(false);
     }
@@ -122,6 +144,11 @@ function JobsManagement({ showToast }) {
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Jobs Management</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">{pagination.total} jobs total</p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Pending: {statusCounts.pending || 0}</span>
+            <span className="rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">Approved: {statusCounts.approved || 0}</span>
+            <span className="rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300">Rejected: {statusCounts.rejected || 0}</span>
+          </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
@@ -131,6 +158,16 @@ function JobsManagement({ showToast }) {
             onChange={(e) => { setPage(1); setSearch(e.target.value); }}
             className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
           />
+          <select
+            value={statusFilter}
+            onChange={(e) => { setPage(1); setStatusFilter(e.target.value); }}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          >
+            <option value="">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
           <button onClick={openCreate} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
             + Add Job
           </button>
@@ -184,6 +221,8 @@ function JobsManagement({ showToast }) {
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Title</th>
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Company</th>
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Type</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Post Type</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Status</th>
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Posted By</th>
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Date</th>
                 <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Actions</th>
@@ -198,9 +237,39 @@ function JobsManagement({ showToast }) {
                   </td>
                   <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400">{job.company}</td>
                   <td className="px-4 py-2.5 text-sm"><span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{job.type}</span></td>
+                  <td className="px-4 py-2.5 text-sm">
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                      {job.role === 'admin' ? 'Admin Post' : 'User Post'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-sm">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      (job.status || 'approved') === 'approved'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                        : (job.status || 'approved') === 'rejected'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                    }`}>
+                      {job.status || 'approved'}
+                    </span>
+                  </td>
                   <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400">{job.postedBy?.fullName || 'N/A'}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400">{new Date(job.createdAt).toLocaleDateString()}</td>
                   <td className="px-4 py-2.5 text-right">
+                    <button
+                      onClick={() => handleModeration(job, 'approve')}
+                      disabled={actionLoading || (job.status || 'approved') === 'approved'}
+                      className="mr-2 text-sm text-green-600 hover:text-green-800 disabled:opacity-50 dark:text-green-400"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleModeration(job, 'reject')}
+                      disabled={actionLoading || (job.status || 'approved') === 'rejected'}
+                      className="mr-2 text-sm text-amber-600 hover:text-amber-800 disabled:opacity-50 dark:text-amber-400"
+                    >
+                      Reject
+                    </button>
                     <button onClick={() => openEdit(job)} className="mr-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Edit</button>
                     <button onClick={() => setDeleteTarget(job)} className="text-sm text-red-600 hover:text-red-800 dark:text-red-400">Delete</button>
                   </td>

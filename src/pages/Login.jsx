@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { authAPI } from '../services/api'
 import cuetLogo from '../assets/logos/CUET_Vector_Logo.svg.png'
@@ -15,14 +15,19 @@ function Login() {
   const [resendLoading, setResendLoading] = useState(false)
   const [resendMessage, setResendMessage] = useState('')
   const { login, isLoggedIn } = useAuth()
+  const location = useLocation()
   const navigate = useNavigate()
+
+  const from = location.state?.from?.pathname && location.state.from.pathname !== '/login'
+    ? location.state.from.pathname
+    : '/'
 
   // Redirect if already logged in
   useEffect(() => {
     if (isLoggedIn) {
-      navigate('/profile')
+      navigate(from, { replace: true })
     }
-  }, [isLoggedIn, navigate])
+  }, [from, isLoggedIn, navigate])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -46,7 +51,7 @@ function Login() {
       setIsLoading(false)
       
       if (result.success) {
-        navigate('/profile')
+        navigate(from, { replace: true })
       } else {
         // Check if the error is about email verification
         if (result.needsVerification) {
@@ -64,7 +69,7 @@ function Login() {
   return (
     <div className="min-h-screen flex bg-gray-50 dark:bg-gray-900">
       {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-teal-700 via-teal-600 to-teal-800 p-12 flex-col justify-between relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-linear-to-br from-teal-700 via-teal-600 to-teal-800 p-12 flex-col justify-between relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px'}}></div>
         </div>
