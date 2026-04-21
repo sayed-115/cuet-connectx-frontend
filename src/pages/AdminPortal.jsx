@@ -18,7 +18,9 @@ const initialStats = {
   totalBannedUsers: 0,
   totalAdmins: 0,
   totalJobs: 0,
+  jobsByStatus: { pending: 0, approved: 0, rejected: 0 },
   totalScholarships: 0,
+  scholarshipsByStatus: { pending: 0, approved: 0, rejected: 0 },
   totalPosts: 0,
 };
 
@@ -503,6 +505,26 @@ function AdminPortal() {
                       </div>
                     </div>
                   ))}
+                </section>
+
+                <section className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-800">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Jobs Moderation</h3>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Pending: {dashboard.jobsByStatus?.pending || 0}</span>
+                      <span className="rounded-full bg-green-100 px-2.5 py-1 font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">Approved: {dashboard.jobsByStatus?.approved || 0}</span>
+                      <span className="rounded-full bg-red-100 px-2.5 py-1 font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300">Rejected: {dashboard.jobsByStatus?.rejected || 0}</span>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-800">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Scholarships Moderation</h3>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Pending: {dashboard.scholarshipsByStatus?.pending || 0}</span>
+                      <span className="rounded-full bg-green-100 px-2.5 py-1 font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">Approved: {dashboard.scholarshipsByStatus?.approved || 0}</span>
+                      <span className="rounded-full bg-red-100 px-2.5 py-1 font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300">Rejected: {dashboard.scholarshipsByStatus?.rejected || 0}</span>
+                    </div>
+                  </div>
                 </section>
 
                 <section className="rounded-xl bg-white p-5 shadow-sm dark:bg-gray-800">

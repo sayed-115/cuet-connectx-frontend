@@ -74,7 +74,7 @@ function Signup() {
   // Redirect if already logged in
   useEffect(() => {
     if (isLoggedIn) {
-      navigate('/profile')
+      navigate('/', { replace: true })
     }
   }, [isLoggedIn, navigate])
 
@@ -129,7 +129,7 @@ function Signup() {
         if (result.needsVerification) {
           setRegistrationSuccess(true)
         } else {
-          navigate('/profile')
+          navigate('/', { replace: true })
         }
       } else {
         setError(result.error)
@@ -196,7 +196,7 @@ function Signup() {
   return (
     <div className="min-h-screen flex bg-gray-50 dark:bg-gray-900">
       {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-teal-700 via-teal-600 to-teal-800 p-12 flex-col justify-between relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-linear-to-br from-teal-700 via-teal-600 to-teal-800 p-12 flex-col justify-between relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px'}}></div>
         </div>

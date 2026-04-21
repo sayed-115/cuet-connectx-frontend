@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -17,6 +17,7 @@ import Terms from './pages/Terms'
 import Cookies from './pages/Cookies'
 import AdminPortal from './pages/AdminPortal'
 import AdminRoute from './components/admin/AdminRoute'
+import ProtectedRoute from './components/ProtectedRoute'
 import VerifyEmail from './pages/VerifyEmail'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
@@ -53,7 +54,11 @@ function App() {
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/profile" element={<Profile />} />
+          <Route element={<ProtectedRoute />}>
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/dashboard" element={<Profile />} />
+            <Route path="/post/:id" element={<Community />} />
+          </Route>
           <Route path="/member/:id" element={<MemberProfile />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<Terms />} />
@@ -66,6 +71,7 @@ function App() {
               </AdminRoute>
             )}
           />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
       {!isAdminRoute && <Footer />}
