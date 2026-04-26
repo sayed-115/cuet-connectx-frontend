@@ -426,14 +426,6 @@ export const adminAPI = {
   rejectScholarship: (id) => apiCall(`/admin/scholarships/${id}/reject`, {
     method: 'PUT',
   }),
-  // Community
-  getPosts: (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    return apiCall(`/admin/community${queryString ? '?' + queryString : ''}`);
-  },
-  deletePost: (id) => apiCall(`/admin/community/${id}`, {
-    method: 'DELETE',
-  }),
 };
 
 export default { authAPI, usersAPI, jobsAPI, scholarshipsAPI, postsAPI, adminAPI };
