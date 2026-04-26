@@ -164,6 +164,20 @@ async function apiCall(endpoint, options = {}) {
   return data;
 }
 
+async function apiCallWith404Fallback(primaryEndpoint, fallbackEndpoint, options = {}) {
+  try {
+    return await apiCall(primaryEndpoint, options);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404 && fallbackEndpoint) {
+      if (import.meta.env.DEV) {
+        console.warn(`[API] 404 on ${primaryEndpoint}. Retrying with fallback ${fallbackEndpoint}`);
+      }
+      return apiCall(fallbackEndpoint, options);
+    }
+    throw error;
+  }
+}
+
 // Auth API
 export const authAPI = {
   register: (userData) => apiCall('/auth/register', {
@@ -398,10 +412,10 @@ export const adminAPI = {
   deleteJob: (id) => apiCall(`/admin/jobs/${id}`, {
     method: 'DELETE',
   }),
-  approveJob: (id) => apiCall(`/admin/jobs/${id}/approve`, {
+  approveJob: (id) => apiCallWith404Fallback(`/admin/jobs/${id}/approve`, `/jobs/${id}/approve`, {
     method: 'PUT',
   }),
-  rejectJob: (id) => apiCall(`/admin/jobs/${id}/reject`, {
+  rejectJob: (id) => apiCallWith404Fallback(`/admin/jobs/${id}/reject`, `/jobs/${id}/reject`, {
     method: 'PUT',
   }),
   // Scholarships
@@ -420,10 +434,10 @@ export const adminAPI = {
   deleteScholarship: (id) => apiCall(`/admin/scholarships/${id}`, {
     method: 'DELETE',
   }),
-  approveScholarship: (id) => apiCall(`/admin/scholarships/${id}/approve`, {
+  approveScholarship: (id) => apiCallWith404Fallback(`/admin/scholarships/${id}/approve`, `/scholarships/${id}/approve`, {
     method: 'PUT',
   }),
-  rejectScholarship: (id) => apiCall(`/admin/scholarships/${id}/reject`, {
+  rejectScholarship: (id) => apiCallWith404Fallback(`/admin/scholarships/${id}/reject`, `/scholarships/${id}/reject`, {
     method: 'PUT',
   }),
   // Community
