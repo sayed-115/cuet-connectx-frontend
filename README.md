@@ -20,7 +20,7 @@ CUET ConnectX is a modern web platform designed to connect students and alumni o
 ### ✨ Key Features
 
 - 🔐 **Authentication** — Signup with email verification, forgot/reset password, change password from profile
-- 📧 **Email Verification** — Crypto token sent via Resend; login blocked until verified
+- 📧 **Email Verification** — Crypto token sent via SMTP; login blocked until verified
 - 🔑 **Session Security** — Password change invalidates all existing sessions
 - 👤 **User Profiles** — Customizable profiles with cover & profile image upload (Cloudinary)
 - 👥 **Follow System** — Follow/unfollow members, followers & following lists
@@ -191,7 +191,7 @@ CUET-ConnectX/
 ```
 Frontend (Vercel)  →  Backend API (Render)  →  MongoDB Atlas
                                              →  Cloudinary (images)
-                                             →  Resend (emails)
+                                             →  SMTP (transactional emails)
 ```
 
 ## 🔐 Authentication Flow

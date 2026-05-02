@@ -24,12 +24,13 @@ function ForgotPassword() {
       // Determine if the input is an email or student ID
       const isEmail = trimmed.includes('@')
       const data = isEmail ? { email: trimmed } : { studentId: trimmed }
-      const res = await authAPI.forgotPassword(data)
+      await authAPI.forgotPassword(data)
       setSuccess(true)
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.')
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   return (

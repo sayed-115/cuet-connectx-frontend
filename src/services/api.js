@@ -1,11 +1,15 @@
 // API Service for CUET-ConnectX
-const RENDER_API_URL = 'https://cuet-connectx-backend.onrender.com/api';
+const RENDER_API_URL = 'https://cuet-connectx-backend-1.onrender.com/api';
 const LOCAL_API_URL = 'http://localhost:5000/api';
 
 const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
 const fallbackApiUrls = import.meta.env.DEV
   ? [LOCAL_API_URL]
   : [RENDER_API_URL];
+const parsedApiTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS || 15000);
+const API_REQUEST_TIMEOUT_MS = Number.isFinite(parsedApiTimeout) && parsedApiTimeout >= 1000
+  ? parsedApiTimeout
+  : 15000;
 
 const apiUrls = Array.from(new Set([
   configuredApiUrl,
@@ -27,8 +31,14 @@ async function fetchWithApiFallback(endpoint, config) {
   const orderedApiUrls = getApiUrlsInPriorityOrder();
 
   for (const baseUrl of orderedApiUrls) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
+
     try {
-      const response = await fetch(`${baseUrl}${endpoint}`, config);
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        ...config,
+        signal: controller.signal,
+      });
 
       if (baseUrl !== activeApiUrl) {
         console.warn(`[API] Switched API base URL to: ${baseUrl}`);
@@ -37,10 +47,18 @@ async function fetchWithApiFallback(endpoint, config) {
 
       return response;
     } catch (err) {
-      lastError = err;
+      if (err?.name === 'AbortError') {
+        const timeoutError = new Error(`Request timed out after ${API_REQUEST_TIMEOUT_MS}ms`);
+        timeoutError.name = 'TimeoutError';
+        lastError = timeoutError;
+      } else {
+        lastError = err;
+      }
       if (import.meta.env.DEV) {
         console.warn(`[API] Network error on ${baseUrl}${endpoint}. Trying next candidate.`);
       }
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -117,6 +135,12 @@ async function apiCall(endpoint, options = {}) {
   try {
     response = await fetchWithApiFallback(endpoint, config);
   } catch (err) {
+    if (err?.name === 'TimeoutError') {
+      throw new ApiError(
+        `Request timed out after ${API_REQUEST_TIMEOUT_MS / 1000}s. Please try again.`,
+        0
+      );
+    }
     throw new ApiError(
       'Unable to connect to the server. Please check your internet connection and try again.',
       0
